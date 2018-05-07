@@ -86,4 +86,6 @@ def simulated_annealing():
 # TODO: 3) change input via file format to have headers and additional options such as starting sequence and morifs
 # TODO: 4) Change mutation code to include issues motif locations and covariation mutations
 # TODO: 5) Optimize (1) and (4)
+# TODO: 6) Graphical interface
+# TODO: 7) Update incaRNAfbinv
 

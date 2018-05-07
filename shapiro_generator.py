@@ -1,3 +1,9 @@
+'''
+File has the function to build a shapiro representation for a dot bracket structure
+Also builds an index list for each motif
+'''
+
+
 import logging
 
 
@@ -22,7 +28,7 @@ def _get_indexes(orig_map_list, arr_index):
     value = orig_map_list.get(arr_index)
     if value is not None:
         res = str(value)
-    return res;
+    return res
 
 
 # generate map of closing index to bracket
@@ -146,6 +152,7 @@ def get_shapiro(structure):
     return ShapiroObject(structure, "".join(aux_list), shapiro, shapiro_indexes)
 
 
+# Object including structure, shapiro and list of sequence indexes for each shapiro motif
 class ShapiroObject(object):
     def __init__(self, structure, aux, shapiro, shapiro_indexes):
         self.structure = structure
@@ -157,6 +164,7 @@ class ShapiroObject(object):
         return self.structure + '\n' + self.aux + '\n' + self.shapiro + '\n' + self.shapiro_indexes
 
 
+# for testing purposes
 if __name__ == "__main__":
     '''
     print("1){}\n".format(get_shapiro(
