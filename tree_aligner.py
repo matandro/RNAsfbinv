@@ -16,10 +16,11 @@ MIN_VALUE = -sys.maxsize - 1
 
 class Tree:
     # 3 mode, M for match, S for source, T for target. exist for aligned trees.
-    def __init__(self, value, children, mode='M'):
+    def __init__(self, value, children, mode='M', index=None):
         self.value = value
         self.children = children
         self.mode = mode
+        self.index = index
 
     def add_child(self, child):
         self.children.append(child)
@@ -28,9 +29,9 @@ class Tree:
         self.children.extend(children)
 
     def print_full(self):
-        res = "{} M{} [".format(self.value, self.mode)
+        res = "{}{} M{} [".format('{})'.format(self.index) if self.index is not None else '', self.value, self.mode)
         for child in self.children:
-            res += child.print_matched()
+            res += child.print_full()
             if child != self.children[-1]:
                 res += ", "
         res += "]"
@@ -40,7 +41,7 @@ class Tree:
     def __str__(self):
         res = ''
         if self.mode == 'M':
-            res = '{} ['.format(self.value)
+            res = '{}{} ['.format('{})'.format(self.index) if self.index is not None else '', self.value)
             for child in self.children:
                 child_str = str(child)
                 if child_str != '':
@@ -48,6 +49,13 @@ class Tree:
             if res[-2:] == ', ':
                 res = res[:-2]
             res += ']'
+        else:
+            for child in self.children:
+                child_str = str(child)
+                if child_str != '':
+                    res += child_str + ", "
+            if res[-2:] == ', ':
+                res = res[:-2]
         return res
 
     def __repr__(self):
@@ -84,122 +92,127 @@ class AlignmentRules:
         self.delete_func = delete_func
 
 
-# try comparing all children combination WITH ORDER (no cross compare possible) - dynamic programming
-def compare_child_combinations(tree_one_children, tree_two_children, alignment_object):
-    def delete_brench(tree, is_target):
-        del_score = 0
-        cpy_tree = copy.deepcopy(tree)
-        tree_stack = [cpy_tree]
-        while len(tree_stack) > 0:
-            current_tree = tree_stack.pop()
-            for child in current_tree.children:
-                tree_stack.append(child)
-            current_tree.mode = 'T' if is_target else 'S'
-            del_score += alignment_object.delete_func(current_tree.value, is_target)
-        # logging.debug('delete brench {} with score {} marked tree {}'.format(tree, del_score, cpy_tree))
-        return del_score, cpy_tree
+# iterative tree alignment
+def align_trees(tree_one, tree_two, alignment_object):
+    def index_tree(tree):
+        node_stack = [tree]
+        node_list = []
+        while len(node_stack) > 0:
+            node = node_stack.pop()
+            node_list.append(node)
+            for child in node.children[::-1]:
+                node_stack.append(child)
+        index = 0
+        node_list = node_list[::-1]
+        for node in node_list:
+            node.index = index
+            index += 1
+        return node_list
 
-    def retrace(score_matrix, transition_matrix):
-        recall_subtree = []
-        index_one = len(score_matrix) - 1
-        index_two = len(score_matrix[0]) - 1
+    def merge_trees(score_matrix, transition_matrix, node_list_one, node_list_two):
+        def find_children_index(index_list, node_index_list):
+            children_indexs = set()
+            for index in index_list:
+                found = False
+                for i in range(0, len(node_index_list)):
+                    x = node_index_list[i]
+                    if index == x:
+                        children_indexs.add(i)
+                        break
+            return children_indexs
+
+        # backtrack node list
+        index_one = len(node_list_one)
+        index_two = len(node_list_two)
+        merged_node_list = []
+        pair_list = []
         while index_one > 0 or index_two > 0:
-            transition_pair = transition_matrix[index_one][index_two]
-            # match
-            if index_one > 0 and index_two > 0 and score_matrix[index_one][index_two] == \
-                    score_matrix[index_one - 1][index_two - 1] + transition_pair[1]:
+            merged_node_list.append(transition_matrix[index_one][index_two][1])
+            if index_one > 0 and index_two > 0 and transition_matrix[index_one][index_two][0] + \
+                    score_matrix[index_one - 1][index_two - 1] == score_matrix[index_one][index_two]:
                 index_one -= 1
                 index_two -= 1
-            # insert
-            elif index_one > 0 and score_matrix[index_one][index_two] == \
-                    score_matrix[index_one - 1][index_two] + transition_pair[1]:
+            elif index_one > 0 and transition_matrix[index_one][index_two][0] + \
+                    score_matrix[index_one - 1][index_two] == score_matrix[index_one][index_two]:
                 index_one -= 1
-            # delete
-            elif index_two > 0 and score_matrix[index_one][index_two] == \
-                    score_matrix[index_one][index_two - 1] + transition_pair[1]:
+            elif index_two > 0 and transition_matrix[index_one][index_two][0] + \
+                    score_matrix[index_one][index_two - 1] == score_matrix[index_one][index_two]:
                 index_two -= 1
             else:
-                raise Exception("Score matrix, no match!\n{} @ [{}][{}] {}\n{}"
-                                .format(score_matrix, one_index, two_index, transition_pair, transition_matrix))
-            recall_subtree.append(transition_pair[0])
-        return recall_subtree
+                raise Exception('Merge trees backtrack error while constructing list. no legal transition\n'
+                                'Indexs[{}][{}]\nscore matrix: {}\n transition matrix: {}'
+                                .format(index_one, index_two, score_matrix, transition_matrix))
+            pair_list.append((index_one, index_two))
+        # reconstruct as tree
+        seen_children = set()
+        for node, (index_one, index_two) in zip(merged_node_list[::-1], pair_list[::-1]):
+            if node.mode == 'M':
+                children = find_children_index([child.index for child in node_list_one[index_one].children],
+                                               [x for x, y in pair_list])
+                children = children.union(
+                    find_children_index([child.index for child in node_list_two[index_two].children],
+                                        [y for x, y in pair_list]))
+            elif node.mode == 'S':
+                children = find_children_index([child.index for child in node_list_one[index_one].children],
+                                               [x for x, y in pair_list])
+            elif node.mode == 'T':
+                children = find_children_index([child.index for child in node_list_two[index_two].children],
+                                               [y for x, y in pair_list])
 
-    score_matrix = [([0] * (len(tree_two_children) + 1)) for i in range(0, (len(tree_one_children) + 1))]
-    transition_matrix = [([0] * (len(tree_two_children) + 1)) for i in range(0, (len(tree_one_children) + 1))]
-    for one_index in range(0, len(tree_one_children) + 1):
-        for two_index in range(0, len(tree_two_children) + 1):
-            alignment_list = []
-            transition_list = []
-            if one_index == 0 and two_index == 0:
+            children = children.difference(seen_children)
+            seen_children = seen_children.union(children)
+            node.add_children([merged_node_list[child_index] for child_index in children])
+        return merged_node_list[0]
+
+    # index trees (lower is further) and create matrix
+    tree_one_indexed = index_tree(tree_one)
+    tree_two_indexed = index_tree(tree_two)
+    score_matrix = [([0] * (len(tree_two_indexed) + 1)) for i in range(0, len(tree_one_indexed) + 1)]
+    transition_matrix = [([0] * (len(tree_two_indexed) + 1)) for i in range(0, len(tree_one_indexed) + 1)]
+    #
+    for index_one in range(0, len(tree_one_indexed) + 1):
+        for index_two in range(0, len(tree_two_indexed) + 1):
+            if index_one == 0 and index_two == 0:
                 continue
+            score_list = []
+            transition_list = []
             # match
-            if one_index > 0 and two_index > 0:
-                subtree, score = align_trees(tree_one_children[one_index - 1], tree_two_children[two_index - 1],
-                                             alignment_object)
-                transition_list.append((subtree, score))
-                alignment_list.append(score_matrix[one_index - 1][two_index - 1] + score)
-            # insert (not using this node from tree one)
-            if one_index > 0:
-                score, sub_tree = delete_brench(tree_one_children[one_index - 1], is_target=False)
-                transition_list.append((sub_tree, score))
-                alignment_list.append(score_matrix[one_index - 1][two_index] + score)
-            # delete (not using this node from tree two)
-            if two_index > 0:
-                score, sub_tree = delete_brench(tree_two_children[two_index - 1], is_target=True)
-                transition_list.append((sub_tree, score))
-                alignment_list.append(score_matrix[one_index][two_index - 1] + score)
-            max_score = max(alignment_list)
-            transition_matrix[one_index][two_index] = transition_list[alignment_list.index(max_score)]
-            score_matrix[one_index][two_index] = max_score
-    final_subtree = retrace(score_matrix, transition_matrix)
-    final_score = score_matrix[one_index][two_index]
-    return final_subtree, final_score
-
-
-# recursive tree alignment
-def align_trees(tree_one, tree_two, alignment_object):
-    # match tree one to tree two (None = uncomparable)
-    cmp_res = alignment_object.cmp_func(tree_one.value, tree_two.value)
-    if cmp_res is not None:
-        match_child_list, match_score = compare_child_combinations(tree_one.children, tree_two.children,
-                                                                   alignment_object)
-        match_score += cmp_res
-        match_subtree = Tree(alignment_object.merge_func(tree_one.value, tree_two.value), [], mode='M')
-        match_subtree.add_children(match_child_list)
-    else:
-        match_score = -sys.maxsize - 1
-
-        # No match for current node in tree one.
-    temp_subtree, tree_one_score = compare_child_combinations(tree_one.children, [tree_two],
-                                                              alignment_object)
-    tree_one_subtree = Tree(tree_one.value, temp_subtree, mode='S')
-    tree_one_score += alignment_object.delete_func(tree_one.value, is_target=False)
-
-    # No match for current node in tree two.
-    temp_subtree, tree_two_score = compare_child_combinations([tree_one], tree_two.children,
-                                                              alignment_object)
-    tree_two_subtree = Tree(tree_two.value, temp_subtree, mode='T')
-    tree_two_score += alignment_object.delete_func(tree_two.value, is_target=True)
-
-    # Take optimal result
-    score = max([match_score, tree_one_score, tree_two_score])
-    if score == match_score:
-        subtree = match_subtree
-    elif score == tree_one_score:
-        subtree = tree_one_subtree
-    elif score == tree_two_score:
-        subtree = tree_two_subtree
-    else:
-        raise Exception('Must match a case {} {} {}'.format(match_score, tree_one_score, tree_two_score))
-    return subtree, score
+            if index_one > 0 and index_two > 0:
+                cmp_value = alignment_object.cmp_func(tree_one_indexed[index_one - 1].value,
+                                                      tree_two_indexed[index_two - 1].value)
+                if cmp_value is not None:
+                    transition_value = cmp_value
+                    score_list.append(transition_value + score_matrix[index_one - 1][index_two - 1])
+                    transition_list.append((transition_value,
+                                            Tree(alignment_object.merge_func(tree_one_indexed[index_one - 1].value,
+                                                                             tree_two_indexed[index_two - 1].value),
+                                                 [], mode='M')))
+            # insert from tree one (ignore node)
+            if index_one > 0:
+                transition_value = alignment_object.delete_func(tree_one_indexed[index_one - 1].value, is_target=False)
+                score_list.append(transition_value + score_matrix[index_one - 1][index_two])
+                transition_list.append((transition_value,
+                                        Tree(tree_one_indexed[index_one - 1].value, [], mode='S')))
+            # insert from tree two (ignore node)
+            if index_two > 0:
+                transition_value = alignment_object.delete_func(tree_two_indexed[index_two - 1].value, is_target=True)
+                score_list.append(transition_value + score_matrix[index_one][index_two - 1])
+                transition_list.append((transition_value,
+                                        Tree(tree_two_indexed[index_two - 1].value, [], mode='T')))
+            max_value = max(score_list)
+            score_matrix[index_one][index_two] = max_value
+            transition_matrix[index_one][index_two] = transition_list[score_list.index(max_value)]
+    return merge_trees(score_matrix, transition_matrix, tree_one_indexed, tree_two_indexed), \
+           score_matrix[index_one][index_two]
 
 
 if __name__ == "__main__":
     ar = AlignmentRules()
-    test_tree_one = Tree(1.1, [Tree(2.1, [Tree(3.1, [Tree(4.1, [])])]), Tree(2.1, [])])
-    test_tree_two = Tree(1.2, [Tree(2.2, []), Tree(2.2, [Tree(3.2, [Tree(3.2, [])])])])
+    test_tree_one = Tree(1.1, [Tree(2.1, [Tree(3.1, [Tree(4.1, [])]), Tree(5.1, [Tree(6.1, [])])]),
+                               Tree(2.1, [Tree(3.1, [])])])
+    test_tree_two = Tree(1.2, [Tree(2.2, [Tree(4.2, [])]), Tree(2.2, [Tree(4.2, [Tree(3.2, [])])])])
     print("Tree one: {}".format(test_tree_one))
     print("Tree two: {}".format(test_tree_two))
     align_tree, align_score = align_trees(test_tree_one, test_tree_two, ar)
     print("Matched only Joined Tree ({}): {}".format(align_score, align_tree))
-    print("Full Joined Tree ({}): {}".format(align_score, align_tree.print_matched()))
+    print("Full Joined Tree ({}): {}".format(align_score, align_tree.print_full()))

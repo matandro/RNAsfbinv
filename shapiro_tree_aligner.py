@@ -9,10 +9,6 @@ import IUPAC
 import logging
 import sys
 
-'''
-SEQ_PARAMS = {'match_score': 100, 'delete_penalty': 0, 'insert_penalty': 0, 'mismatch_penalty': 0,
-              'panelty_del_N': 0, 'match_score_N': 0.1}
-'''
 SEQ_PARAMS = {'match_score': 0, 'delete_penalty': -1000, 'insert_penalty': -1, 'mismatch_penalty': -1000,
               'panelty_del_N': -1, 'match_score_N': 0}
 
@@ -334,4 +330,3 @@ if __name__ == "__main__":
         tree_aligner.AlignmentRules(insert_func=insert_shapiro_func, delete_func=delete_shapiro_func,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}".format(aligned_score, aligned_tree))
-
