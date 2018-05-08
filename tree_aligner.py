@@ -72,23 +72,21 @@ def def_merge(x, y):
     return x
 
 
-def def_insert_func(x):
-    return -1
-
-
 def def_delete_func(x, is_target=False):
     return -1 * (2 if is_target else 1)
 
 
-# TODO: Add fucntion to say if we are looking for minimum or maximum (score comparison)
 # object with alignment rules.
-# cmp_func a function that receives 2 values and returns the bonus for a match (0 if non)
+# cmp_func : a function that receives 2 tree values and returns the comparison score
+# merge_func : a function that receives 2 tree values and returns a merged consensus
+# delete_func : a function that receives a single tree value and a boolean marking false as source tree and True as target
+
 class AlignmentRules:
-    def __init__(self, insert_func=def_insert_func, delete_func=def_delete_func, cmp_func=def_cmp,
+    def __init__(self, minmax_func=max, delete_func=def_delete_func, cmp_func=def_cmp,
                  merge_func=def_merge):
         self.cmp_func = cmp_func
         self.merge_func = merge_func
-        self.insert_func = insert_func
+        self.minmax_func = minmax_func
         self.delete_func = delete_func
 
 
@@ -199,9 +197,9 @@ def align_trees(tree_one, tree_two, alignment_object):
                 score_list.append(transition_value + score_matrix[index_one][index_two - 1])
                 transition_list.append((transition_value,
                                         Tree(tree_two_indexed[index_two - 1].value, [], mode='T')))
-            max_value = max(score_list)
-            score_matrix[index_one][index_two] = max_value
-            transition_matrix[index_one][index_two] = transition_list[score_list.index(max_value)]
+            minmax_value = alignment_object.minmax_func(score_list)
+            score_matrix[index_one][index_two] = minmax_value
+            transition_matrix[index_one][index_two] = transition_list[score_list.index(minmax_value)]
     return merge_trees(score_matrix, transition_matrix, tree_one_indexed, tree_two_indexed), \
            score_matrix[index_one][index_two]
 

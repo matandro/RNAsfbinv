@@ -9,14 +9,14 @@ import IUPAC
 import logging
 import sys
 
-SEQ_PARAMS = {'match_score': 0, 'delete_penalty': -1000, 'insert_penalty': -1, 'mismatch_penalty': -1000,
-              'panelty_del_N': -1, 'match_score_N': 0}
+SEQ_PARAMS = {'match_score': 0, 'delete_penalty': 1000, 'insert_penalty': 1, 'mismatch_penalty': 1000,
+              'panelty_del_N': 1, 'match_score_N': 0}
 
 
 def align_single_seq(seq_one, seq_two):
-    alignment_matrix = IUPAC.align_iupac_dna_sequence(seq_one, seq_two, **SEQ_PARAMS)
+    alignment_matrix = IUPAC.align_iupac_dna_sequence(seq_one, seq_two, **SEQ_PARAMS, minmax_func=min)
     return IUPAC.get_best_score(alignment_matrix), \
-           IUPAC.generate_optimal_alignments(seq_one, seq_two, return_single=True,
+           IUPAC.generate_optimal_alignments(seq_one, seq_two, return_single=True, minmax_func=min,
                                              score_matrix=alignment_matrix, **SEQ_PARAMS)
 
 
@@ -72,7 +72,7 @@ def align_sequences(sequence_one, sequence_two):
                 calc_score, alignment = align_single_seq('', seqs_two[two_index - 1])
                 transition_list.append((calc_score, alignment))
                 score_list.append(calc_score + score_matrix[one_index][two_index - 1])
-            max_value = max(score_list)
+            max_value = min(score_list)
             transition_matrix[one_index][two_index] = transition_list[score_list.index(max_value)]
             score_matrix[one_index][two_index] = max_value
     return score_matrix[one_index][two_index], retrace(score_matrix, transition_matrix)
@@ -103,17 +103,13 @@ def smart_merge_shapiro_tree_values(value_one, value_two):
     raise NotImplementedError
 
 
-def insert_shapiro_func(value):
-    score, _ = align_sequences(value.sequence, '')
-    logging.debug("insert {} score {}".format(value, score))
-    return score
-
-
 def delete_shapiro_func(value, is_target=False):
     if is_target:
         score, _ = align_sequences('', value.sequence)
+        score += 100
     else:
         score, _ = align_sequences(value.sequence, '')
+        score += 1000
     logging.debug("delete {} {} score {}".format(value, '(Target)' if is_target else '', score))
     return score
 
@@ -219,18 +215,18 @@ def get_tree(structure, sequence):
 
 
 def align_trees(tree_source, tree_target,
-                alignment_rules=tree_aligner.AlignmentRules(insert_func=insert_shapiro_func,
-                                                            delete_func=delete_shapiro_func,
+                alignment_rules=tree_aligner.AlignmentRules(delete_func=delete_shapiro_func,
                                                             cmp_func=cmp_shapiro_tree_values,
-                                                            merge_func=merge_shapiro_tree_values)):
+                                                            merge_func=merge_shapiro_tree_values,
+                                                            minmax_func=min)):
     return tree_aligner.align_trees(tree_source, tree_target, alignment_rules)
 
 
 def align_shapiro(shapiro_source, sequence_source, shapiro_target, sequence_target,
-                  alignment_rules=tree_aligner.AlignmentRules(insert_func=insert_shapiro_func,
-                                                              delete_func=delete_shapiro_func,
+                  alignment_rules=tree_aligner.AlignmentRules(delete_func=delete_shapiro_func,
                                                               cmp_func=cmp_shapiro_tree_values,
-                                                              merge_func=merge_shapiro_tree_values)):
+                                                              merge_func=merge_shapiro_tree_values,
+                                                              minmax_func=min)):
     tree_source = shapiro_to_tree(sequence_source.shapiro, shapiro_source.shapiro_indexesm, sequence_source)
     tree_target = shapiro_to_tree(shapiro_target.shapiro, shapiro_target.shapiro_indexesm, sequence_target)
     return tree_aligner.align_trees(tree_source, tree_target, alignment_rules)
@@ -239,7 +235,7 @@ def align_shapiro(shapiro_source, sequence_source, shapiro_target, sequence_targ
 if __name__ == "__main__":
     '''
     logging.basicConfig(level=logging.DEBUG)
-
+    '''
     print('Simple test 1')
     shapiro_one = shapiro_generator.get_shapiro("((((((((..((((((.......))))....))))))")
     shapiro_two = shapiro_generator.get_shapiro("((((((((..((.(((.......))))))..))..))))")
@@ -251,11 +247,10 @@ if __name__ == "__main__":
     print("Shapiro two: {}\nTree two: {}".format(shapiro_two.shapiro, tree_two))
     aligned_tree, aligned_score = tree_aligner.align_trees(
         tree_one, tree_two,
-        tree_aligner.AlignmentRules(insert_func=insert_shapiro_func, delete_func=delete_shapiro_func,
+        tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}\n".format(aligned_score, aligned_tree))
-    '''
-    '''
+
     logging.basicConfig(level=logging.DEBUG)
 
     print('Simple test 2')
@@ -267,12 +262,12 @@ if __name__ == "__main__":
                                'NNNNNNNNUNNNNNNNNNNNNNUNNNNNNUYNNNNNNNN')
     aligned_tree, aligned_score = tree_aligner.align_trees(
         tree_one, tree_two,
-        tree_aligner.AlignmentRules(insert_func=insert_shapiro_func, delete_func=delete_shapiro_func,
+        tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Shapiro one: {}\nTree one: {}".format(shapiro_one.shapiro, tree_one))
     print("Shapiro two: {}\nTree two: {}".format(shapiro_two.shapiro, tree_two))
     print("Aligned tree ({}): {}\n".format(aligned_score, aligned_tree))
-    '''
+
     print('Test alignment distance 28 / 10')
     shapiro_one = shapiro_generator.get_shapiro("((((((((.(.(((((...((((((..((((.....)))))).))))....))))).)...))))))))")
     shapiro_two = shapiro_generator.get_shapiro("((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))")
@@ -284,7 +279,7 @@ if __name__ == "__main__":
     print("Shapiro two: {}\nTree two: {}".format(shapiro_two.shapiro, tree_two))
     aligned_tree, aligned_score = tree_aligner.align_trees(
         tree_one, tree_two,
-        tree_aligner.AlignmentRules(insert_func=insert_shapiro_func, delete_func=delete_shapiro_func,
+        tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}\n".format(aligned_score, aligned_tree))
     
@@ -299,7 +294,7 @@ if __name__ == "__main__":
     print("Shapiro two: {}\nTree two: {}".format(shapiro_two.shapiro, tree_two))
     aligned_tree, aligned_score = tree_aligner.align_trees(
         tree_one, tree_two,
-        tree_aligner.AlignmentRules(insert_func=insert_shapiro_func, delete_func=delete_shapiro_func,
+        tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}\n".format(aligned_score, aligned_tree))
     print('Test alignment distance 1 / 0')
@@ -313,7 +308,7 @@ if __name__ == "__main__":
     print("Shapiro two: {}\nTree two: {}".format(shapiro_two.shapiro, tree_two))
     aligned_tree, aligned_score = tree_aligner.align_trees(
         tree_one, tree_two,
-        tree_aligner.AlignmentRules(insert_func=insert_shapiro_func, delete_func=delete_shapiro_func,
+        tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}\n".format(aligned_score, aligned_tree))
     print('Test perfect alignment')
@@ -327,6 +322,6 @@ if __name__ == "__main__":
     print("Shapiro two: {}\nTree two: {}".format(shapiro_two.shapiro, tree_two))
     aligned_tree, aligned_score = tree_aligner.align_trees(
         tree_one, tree_two,
-        tree_aligner.AlignmentRules(insert_func=insert_shapiro_func, delete_func=delete_shapiro_func,
+        tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}".format(aligned_score, aligned_tree))
