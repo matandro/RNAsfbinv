@@ -59,20 +59,18 @@ def simulated_annealing():
         for look_ahead in range(0, no_lookahead):
             new_sequence = mutator.perturbate(current_sequence, match_tree, options)
             new_tree, new_score = score_sequence(new_sequence, target_tree)
-            # TODO: currently max is best score, this searches for minimum
             if new_score < current_score:
                 progress = True
                 break
             elif random.random() < (2.0 / (iter+1.0) / no_lookahead):
                 # TODO: change transition probability as a function of the diff \
-                # TODO: we have a partial test (current/new_score / optimal_score)
+                # TODO: 0 is optimal score, maybe use distance from it (or improvement / unprovement)
                 progress = True
                 break
         if progress:
             current_sequence = new_sequence
             current_score = new_score
             match_tree = new_tree
-        # TODO: currently max is best score, this searches for minimum
         if current_score < best_score:
             best_score = current_score
             final_result = current_sequence
@@ -80,8 +78,8 @@ def simulated_annealing():
     return final_result
 
 # TODO: Global task list
-# TODO: 1) Fix scoring to allow for grater diffs on motif based errors and sequence and add other minor impacts such as
-# TODO:    MR and energy
+# DONE: 1) Fix scoring to allow for grater diffs on motif based errors and sequence and add other minor impacts such as
+# TODO:    MR and energy (partialy done, did not add mr and energy)
 # TODO: 2) Add support for settings via file (non mandatory options)
 # TODO: 3) change input via file format to have headers and additional options such as starting sequence and morifs
 # TODO: 4) Change mutation code to include issues motif locations and covariation mutations
