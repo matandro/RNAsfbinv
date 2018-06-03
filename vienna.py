@@ -4,6 +4,7 @@ Responsible for running
 '''
 
 import os
+import re
 import sys
 import logging
 from subprocess import Popen, PIPE
@@ -13,6 +14,7 @@ VIENNA_PATH = "D:\\Programs\\ViennaRNA\\"#""/opt/algorithm/ViennaRNA/bin/"
 
 RNAFOLD_EXE = "RNAfold"
 INVERSE_EXE = "RNAinverse"
+RES_MATCHER = re.compile(r'(?P<structure>([.()])+) ([({])\s*(?P<energy>[-+]?\d*\.\d+|\d+)\)?.*')
 if sys.platform =='win32':
     RNAFOLD_EXE += '.exe'
     INVERSE_EXE += '.exe'
@@ -26,10 +28,26 @@ def output_fold_analyze(output):
     structure = {}
     try:
         lines = output.split('\\n')
-        structure['MFE'] = lines[1].split(' ')[0].strip()
-        structure['centroid'] = lines[3].split(' ')[0].strip()
-    except:
-        structure = {}
+        match = RES_MATCHER.match(lines[1].strip())
+        if match:
+            structure['MFE'] = match.group('structure')
+            try:
+                structure['MFE_energy'] = float(match.group('energy'))
+            except ValueError:
+                logging.warning('Could not collect MFE energy: {}'.format(lines[1]))
+        else:
+            raise Exception(match)
+        match = RES_MATCHER.match(lines[3].strip())
+        if match:
+            structure['centroid'] = match.group('structure')
+            try:
+                structure['centroid_energy'] = float(match.group('energy'))
+            except ValueError:
+                logging.warning('Could not collect centroid energy: {}'.format(lines[3]))
+        else:
+            raise Exception(match)
+    except Exception as e:
+        logging.warning('could not collect fold data: {}\n{}'.format(str(e), output))
     return structure
 
 
@@ -88,6 +106,7 @@ def inverse_seq_ready(sequence):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     test_sequence = "AGUAGAUGGCCCGUGGUGUCCCGGAGUGGCUGUAGAGUGAGAUGCAGAUGGAC" \
                     "GACUGAGCCCAUAGGGCCGCUUAUAAUAACCUAUGCCCCCACAUCGUGUAAUU" \
                     "UCAACCCGCAGCACUAUCACAGCCACAGGGUCGAUCA"

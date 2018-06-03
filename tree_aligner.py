@@ -14,13 +14,27 @@ import copy
 MIN_VALUE = -sys.maxsize - 1
 
 
+def get_align_tree_distance(aligned_tree):
+    node_stack = list()
+    node_stack.append(aligned_tree)
+    unmatched_counter = 0
+    while len(node_stack) > 0:
+        node = node_stack.pop()
+        if node.mode != 'M':
+            unmatched_counter += 1
+        for child in node.children:
+            node_stack.append(child)
+    return unmatched_counter
+
+
 class Tree:
     # 3 mode, M for match, S for source, T for target. exist for aligned trees.
-    def __init__(self, value, children, mode='M', index=None):
+    def __init__(self, value, children, mode='M', index=None, alignment=None):
         self.value = value
         self.children = children
         self.mode = mode
         self.index = index
+        self.value_align = alignment
 
     def add_child(self, child):
         self.children.append(child)
@@ -29,7 +43,8 @@ class Tree:
         self.children.extend(children)
 
     def print_full(self):
-        res = "{}{} M{} [".format('{})'.format(self.index) if self.index is not None else '', self.value, self.mode)
+        res = "{}{} {}{} [".format('{})'.format(self.index) if self.index is not None else '', self.value, self.mode,
+                                   ':{}'.format(self.value_align) if self.value_align is not None else '')
         for child in self.children:
             res += child.print_full()
             if child != self.children[-1]:
@@ -41,7 +56,7 @@ class Tree:
     def __str__(self):
         res = ''
         if self.mode == 'M':
-            res = '{}{} ['.format('{})'.format(self.index) if self.index is not None else '', self.value)
+            res = '{}{} ['.format(self.value, ':{}'.format(self.value_align) if self.value_align is not None else '')
             for child in self.children:
                 child_str = str(child)
                 if child_str != '':
@@ -64,8 +79,8 @@ class Tree:
 
 def def_cmp(x, y):
     if int(x) == int(y):
-        return 10
-    return None
+        return 10, None
+    return None, None
 
 
 def def_merge(x, y):
@@ -73,7 +88,7 @@ def def_merge(x, y):
 
 
 def def_delete_func(x, is_target=False):
-    return -1 * (2 if is_target else 1)
+    return -1 * (2 if is_target else 1), None
 
 
 # object with alignment rules.
@@ -176,7 +191,7 @@ def align_trees(tree_one, tree_two, alignment_object):
             transition_list = []
             # match
             if index_one > 0 and index_two > 0:
-                cmp_value = alignment_object.cmp_func(tree_one_indexed[index_one - 1].value,
+                cmp_value, cmp_align = alignment_object.cmp_func(tree_one_indexed[index_one - 1].value,
                                                       tree_two_indexed[index_two - 1].value)
                 if cmp_value is not None:
                     transition_value = cmp_value
@@ -184,19 +199,21 @@ def align_trees(tree_one, tree_two, alignment_object):
                     transition_list.append((transition_value,
                                             Tree(alignment_object.merge_func(tree_one_indexed[index_one - 1].value,
                                                                              tree_two_indexed[index_two - 1].value),
-                                                 [], mode='M')))
+                                                 [], mode='M', alignment=cmp_align)))
             # insert from tree one (ignore node)
             if index_one > 0:
-                transition_value = alignment_object.delete_func(tree_one_indexed[index_one - 1].value, is_target=False)
+                transition_value, transition_align = alignment_object.delete_func(tree_one_indexed[index_one - 1].value, is_target=False)
                 score_list.append(transition_value + score_matrix[index_one - 1][index_two])
                 transition_list.append((transition_value,
-                                        Tree(tree_one_indexed[index_one - 1].value, [], mode='S')))
+                                        Tree(tree_one_indexed[index_one - 1].value, [],
+                                             mode='S', alignment=transition_align)))
             # insert from tree two (ignore node)
             if index_two > 0:
-                transition_value = alignment_object.delete_func(tree_two_indexed[index_two - 1].value, is_target=True)
+                transition_value, transition_align = alignment_object.delete_func(tree_two_indexed[index_two - 1].value, is_target=True)
                 score_list.append(transition_value + score_matrix[index_one][index_two - 1])
                 transition_list.append((transition_value,
-                                        Tree(tree_two_indexed[index_two - 1].value, [], mode='T')))
+                                        Tree(tree_two_indexed[index_two - 1].value, [],
+                                             mode='T', alignment=transition_align)))
             minmax_value = alignment_object.minmax_func(score_list)
             score_matrix[index_one][index_two] = minmax_value
             transition_matrix[index_one][index_two] = transition_list[score_list.index(minmax_value)]

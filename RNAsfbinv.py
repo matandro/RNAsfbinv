@@ -26,7 +26,10 @@ USAGE_TEXT = """Usage: python3 RNAsfbinv [Options]
     -s <starting sequence> : the initial sequence for the simulated annealing process
     -r : force starting simulated annealing with a random sequence
     -f <input file path> : path of file that includes mandatory information. if not given, the information will be requested by command line.
-    -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)"""  # TODO: add example for -m
+    -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
+    --verbose : Additional info message on simulation process
+    --debug : Debug information
+    -l <log file path> : Logging information will be written to a given file path (rewrites file if exists)"""  # TODO: add example for -m
 
 
 DEF_NO_ITER = 100
@@ -43,10 +46,35 @@ def generate_arg_map(argv):
         return i
 
     arg_map = {}
+    logger = logging.getLogger('RNAsfbinv')
+    formatter = logging.Formatter('%(levelname)s:%(asctime)s - %(message)s')
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    arg_map['logger'] = logger
     # -h
     item_index = index('-h')
     if item_index is not None:
         arg_map['error'] = 'Help'
+    # -l <log file path
+    item_index = index('-l')
+    if item_index is not None:
+        if item_index + 1 >= len(argv):
+            arg_map['error'] = '-l requires path for log file'
+            return arg_map
+        log_path = argv[item_index + 1]
+        if os.path.exists(log_path):
+            logging.warning('Log file already exists, appending to it')
+        file_handler = logging.FileHandler(log_path)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    # --verbose or --debug (logging level info instead of warning)
+    if index('--verbose') is not None:
+        logger.setLevel(logging.INFO)
+    elif index('--debug') is not None:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.WARNING)
     # -p <MFE|centroid>
     item_index = index('-p')
     if item_index is not None:
@@ -100,6 +128,8 @@ def generate_arg_map(argv):
     item_index = index('-e')
     if item_index is not None:
         arg_map['circular'] = True
+    else:
+        arg_map['circular'] = False
     # -m <motif to preserve[,...]>
     item_index = index('-m')
     if item_index is not None:
@@ -124,17 +154,19 @@ def generate_arg_map(argv):
             arg_map['error'] = '-s <starting sequence> and -r do not work together'
             return arg_map
         arg_map['random'] = True
-    # -o <output log file>
-    item_index = index('-o')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '-o requires path to output log file'
-            return arg_map
-        error = setup_log_file(argv[item_index + 1])
-        if error is not None:
-            arg_map['error'] = error
-            return arg_map
+
+    # -o <output log file> TODO: replace
+    #item_index = index('-o')
+    #if item_index is not None:
+    #    if item_index + 1 >= len(argv):
+    #        arg_map['error'] = '-o requires path to output log file'
+    #        return arg_map
+    #    error = setup_log_file(argv[item_index + 1])
+    #    if error is not None:
+    #        arg_map['error'] = error
+    #        return arg_map
     # -f <input file path>- Keep last
+
     item_index = index('-f')
     if item_index is not None:
         if item_index + 1 >= len(argv):
@@ -224,13 +256,13 @@ def usage(error='Help'):
     return
 
 
-# setups output log file
-def setup_log_file(log_path, formatter=logging.formatter('%(message)s')):
+# setups output file for results only TODO: maybe not via logger
+def setup_file(out_path, formatter=logging.Formatter('%(message)s')):
     error = None
-    if os.path.exists(log_path):
+    if os.path.exists(out_path):
         logging.warning('Log file already exists, appending to it')
     # TODO: check what error comes out if there are no permission to write to file
-    handler = logging.FileHandler(log_path)
+    handler = logging.FileHandler(out_path)
     handler.setFormatter(formatter)
     logger = logging.getLogger('file')
     logger.setLevel(logging.INFO)
@@ -273,17 +305,20 @@ def read_mandatory_params():
 
 
 def main(argv):
-    logging.debug("Analyzing arguments {}".format(argv))
+    logging.info("Starting RNAsfbinv, arguments: {}".format(argv))
     arg_map = generate_arg_map(argv)
-    logging.debug("Arguments ready {}".format(arg_map))
+    logging.info("Run argument map:\n{}".format(arg_map))
     error = arg_map.get('error')
     if error is not None:
         usage(error)
     else:
-        sfb_designer.simulated_annealing(arg_map)
+        sfb_designer.update_options(arg_map)
+        designed_sequence = sfb_designer.simulated_annealing()
+        logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
+        sfb_designer.print_res(designed_sequence)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=logging.WARNING,
                         format='%(levelname)s:%(asctime)s - %(message)s')
     main(sys.argv[1:])
