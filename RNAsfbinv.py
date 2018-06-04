@@ -14,6 +14,7 @@ import sys
 import logging
 
 import IUPAC
+import vienna
 import sfb_designer
 
 USAGE_TEXT = """Usage: python3 RNAsfbinv [Options]
@@ -70,9 +71,9 @@ def generate_arg_map(argv):
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     # --verbose or --debug (logging level info instead of warning)
-    if index('--verbose') is not None:
+    if index('--debug') is not None:
         logger.setLevel(logging.INFO)
-    elif index('--debug') is not None:
+    elif index('--verbose') is not None:
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.WARNING)
@@ -327,10 +328,16 @@ def main(argv):
     if error is not None:
         usage(error)
     else:
+        # init RNAfold
+        rna_folder = vienna.LiveRNAfold()
+        rna_folder.start(arg_map.get('circular'))
+        arg_map['RNAfold'] = rna_folder
+        # run simulated annealing
         sfb_designer.update_options(arg_map)
         designed_sequence = sfb_designer.simulated_annealing()
         logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
         sfb_designer.print_res(designed_sequence)
+        rna_folder.close()
 
 
 if __name__ == "__main__":

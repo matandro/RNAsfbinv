@@ -15,12 +15,14 @@ import IUPAC
 
 options = {}
 logger = None
+vienna_fold = None
 
 
 def update_options(arg_map):
-    global options, logger
+    global options, logger, vienna_fold
     options.update(arg_map)
     logger = options.get('logger')
+    vienna_fold = options.get('RNAfold')
     logger.debug("Updating option map: {}".format(arg_map))
 
 
@@ -64,15 +66,14 @@ def calculate_neutrality(sequence, target_structure):
         for c in IUPAC.IUPAC_RNA_BASE:
             if sequence[i] != c:
                 new_seq = sequence[:i] + c + sequence[i + 1:]
-                structure = vienna.fold(new_seq)[options.get('fold')]
+                structure = vienna_fold.fold(new_seq)[options.get('fold')]
                 accum += bp_distance(structure, target_structure)
     return 1.0 - (accum / (pow(seq_length, 2) * 3.0))
 
 
 def score_sequence(sequence, target_tree):
-    global options
     # Align score tree alignment + sequence alignment
-    fold_map = vienna.fold(sequence)
+    fold_map = vienna_fold.fold(sequence)
     structure = fold_map[options.get('fold')]
     tree, score = shapiro_tree_aligner.align_trees(shapiro_tree_aligner.get_tree(structure, sequence),
                                                    target_tree)
@@ -88,7 +89,7 @@ def score_sequence(sequence, target_tree):
 
 
 def print_res(result_seq):
-    fold_map = vienna.fold(result_seq, is_circular=options.get('circular'))
+    fold_map = vienna_fold.fold(result_seq)
     result_struct = fold_map.get(options.get('fold'))
     mutational_robustness = calculate_neutrality(result_seq, result_struct)
     target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])
@@ -127,7 +128,6 @@ def acceptance_probability(old_score, new_score, temperature, k):
 
 
 def simulated_annealing():
-    global options
     if len(options) == 0:
         logger.fatal('Options not passed to simulated annealing. must call update options before')
         return

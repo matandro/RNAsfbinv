@@ -27,7 +27,7 @@ def set_vienna_path(path):
 def output_fold_analyze(output):
     structure = {}
     try:
-        lines = output.split('\\n')
+        lines = output.split('\n')
         match = RES_MATCHER.match(lines[1].strip())
         if match:
             structure['MFE'] = match.group('structure')
@@ -51,6 +51,59 @@ def output_fold_analyze(output):
     return structure
 
 
+END_SEQUENCE = 'ensemble diversity'
+
+
+class LiveRNAfold:
+    def __init__(self):
+        self.proc = None
+
+    def __del__(self):
+        self.close()
+
+    def _read_until_ready(self):
+        lines = []
+        done = False
+        line = ''
+        while not done:
+            c = self.proc.stdout.read(1)
+            if c == '\n':
+                lines.append(line)
+                if END_SEQUENCE in line:
+                    done = True
+                else:
+                    line = ''
+            else:
+                line += c
+        return lines
+
+    def start(self, is_circular):
+        param_list = [os.path.join(VIENNA_PATH, RNAFOLD_EXE), '-p', '--noPS']
+        if is_circular:
+            param_list.append('-c')
+        logging.debug("Running multi run RNAfold: {}".format(param_list))
+        self.proc = Popen(param_list, stdout=PIPE, stdin=PIPE, universal_newlines=True)
+        #self._read_until_ready()
+
+    def close(self):
+        if self.proc is not None:
+            logging.debug("Closing multi run RNAfold")
+            self.proc.stdin.write('@\n')
+            self.proc.stdin.flush()
+            self.proc.stdin.close()
+            self.proc.stdout.close()
+            self.proc.kill()
+            self.proc = None
+
+    def fold(self, sequence):
+        logging.debug("Folding multi run RNAfold: {}".format(sequence))
+        self.proc.stdin.write('{}\n'.format(sequence))
+        self.proc.stdin.flush()
+        lines = self._read_until_ready()
+        structure_map = output_fold_analyze('\n'.join(lines))
+        return structure_map
+
+
 # single use call to RNA fold TODO: add another version that runs on the same client to avoid popen
 def fold(sequence, is_circular=False):
     structure_map = None
@@ -58,10 +111,10 @@ def fold(sequence, is_circular=False):
         param_list = [os.path.join(VIENNA_PATH, RNAFOLD_EXE), '-p', '--noPS']
         if is_circular:
             param_list.append('-c')
-        with Popen(param_list, stdout=PIPE, stdin=PIPE) as proc:
+        with Popen(param_list, stdout=PIPE, stdin=PIPE, universal_newlines=True) as proc:
             logging.debug("Running RNAfold: {}".format(param_list))
-            fold_output, errs = proc.communicate("{}\n@\n".format(sequence).encode())
-            structure_map = output_fold_analyze(str(fold_output))
+            fold_output, errs = proc.communicate("{}\n@\n".format(sequence))
+            structure_map = output_fold_analyze(fold_output)
     except OSError as e:
         logging.error("Failed to run: '{}'. ERROR: {}".format(param_list, e.errno))
     return structure_map
@@ -82,10 +135,10 @@ def inverse(structure, sequence=None):
         if sequence is None:
             sequence = 'N' * structure
         param_list = [os.path.join(VIENNA_PATH, INVERSE_EXE)]
-        with Popen(param_list, stdout=PIPE, stdin=PIPE) as proc:
+        with Popen(param_list, stdout=PIPE, stdin=PIPE, universal_newlines=True) as proc:
             logging.debug("Running RNAinverse: {}".format(param_list))
-            inverse_output, errs = proc.communicate("{}\n{}\n@\n".format(structure, sequence).encode())
-            res_sequence = output_inverse_analyze(inverse_output.decode())
+            inverse_output, errs = proc.communicate("{}\n{}\n@\n".format(structure, sequence))
+            res_sequence = output_inverse_analyze(inverse_output)
             if res_sequence is not None:
                 res_sequence = res_sequence.upper()
             else:
@@ -112,8 +165,20 @@ if __name__ == "__main__":
                     "UCAACCCGCAGCACUAUCACAGCCACAGGGUCGAUCA"
     if len(sys.argv) > 1:
         test_sequence = sys.argv[1]
-    print(fold(test_sequence))
+
+    # TEST RNAfold RUN PER POPEN
+    print("Run per popen:\n{}\n".format(fold(test_sequence)))
     test_structure = '((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))'
+    # TEST RNAfold MULTI RUN PER POPEN
+    multi_folder = LiveRNAfold()
+    multi_folder.start(False)
+    print("Run 1 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence)))
+    print("Run 2 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence[: int(len(test_sequence) / 2)])))
+    print("Run 3 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence[int(len(test_sequence) / 2):])))
+    multi_folder.close()
+    # TEST RNAinverse
     test_sequence = 'NNNNNNNNuNNNNNNNNNNNNNNNNNNNNNNNNuNNNuNNNNNNNNNNNNNNNNNNNNNNyNNNNNNNN'
-    print(inverse(test_structure, test_sequence))
+    print("RNAinverse:\n{}\n".format(inverse(test_structure, test_sequence)))
+
+
 
