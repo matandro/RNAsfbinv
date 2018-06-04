@@ -5,6 +5,7 @@ Main loop for RNAsfbinv.
 
 import logging
 import random
+import math
 
 import shapiro_tree_aligner
 import tree_aligner
@@ -103,6 +104,28 @@ def print_res(result_seq):
     logger.info(print_data)
 
 
+ALPHA = 2.0
+INITIAL_TEMP = 37.0
+
+
+def calc_temp(iteration, max_iteration):
+    temp = INITIAL_TEMP / (1 + ALPHA * math.log(1 + iteration))
+    ''' linear
+    temp = (max_iteration - iteration) * INITIAL_TEMP / max_iteration
+    '''
+    return temp
+
+
+def acceptance_probability(old_score, new_score, temperature, k):
+    if new_score < old_score:
+        return 1.0
+    elif temperature == 0:
+        return 0.0
+    else:
+        diff = (new_score - old_score)
+        return math.exp(-diff / (k * temperature))
+
+
 def simulated_annealing():
     global options
     if len(options) == 0:
@@ -117,31 +140,40 @@ def simulated_annealing():
     no_lookahead = options.get('look_ahead')
     # init initial sequence
     current_sequence = options.get('starting_sequence')
-    if current_sequence is None and options.get('-r') is not None:
+    if current_sequence is None and options.get('random'):
         current_sequence = generate_random_start(len(options['target_structure']))
-    final_result = current_sequence = vienna.inverse(options['target_structure'],
-                                                     vienna.inverse_seq_ready(options['target_sequence']))
+    else:
+        current_sequence = vienna.inverse(options['target_structure'],
+                                          vienna.inverse_seq_ready(options['target_sequence']))
+    final_result = current_sequence
     # setup target tree and get initial sequence score (and max score)
     target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])
     _, optimal_score = shapiro_tree_aligner.align_trees(target_tree, target_tree)
     match_tree, current_score = score_sequence(current_sequence, target_tree)
     best_score = current_score
-    final_tree = match_tree
     logger.info('Initial sequence ({}): {}\nAlign tree: {}'.format(current_score, current_sequence, match_tree))
     # main loop
     for iter in range(0, no_iterations):
+        if best_score == 0:
+            break
         progress = False
         for look_ahead in range(0, no_lookahead):
             new_sequence = mutator.perturbate(current_sequence, match_tree, options)
             new_tree, new_score = score_sequence(new_sequence, target_tree)
+            temperature = calc_temp(iter, no_iterations)
+            probability = acceptance_probability(current_score, new_score, temperature, len(current_sequence))
+            logger.debug("iteration {} - TEMP: {} PROBABILITY: {}".format(iter + 1, temperature, probability))
+            if random.random() < probability:
+                progress = True
+                break
+            ''' OLD method, decays very fast (new is boltzman probability)
             if new_score < current_score:
                 progress = True
                 break
             elif random.random() < (2.0 / (iter + 1.0) / no_lookahead):
-                # TODO: change transition probability as a function of the diff \
-                # TODO: 0 is optimal score, maybe use distance from it (or improvement / unprovement)
                 progress = True
                 break
+            '''
         if progress:
             current_sequence = new_sequence
             current_score = new_score
@@ -149,9 +181,8 @@ def simulated_annealing():
         if current_score <= best_score:
             best_score = current_score
             final_result = current_sequence
-            final_tree = match_tree
-        logger.info('Iteration {} best sequence ({}): {}\nAlign tree: {}'.format(iter + 1, best_score,
-                                                                                 final_result, final_tree))
+        logger.info('Iteration {} current sequence ({}): {}\nAlign tree: {}'.format(iter + 1, current_score,
+                                                                                    current_sequence, match_tree))
     # final print
     return final_result
 

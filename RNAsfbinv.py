@@ -29,7 +29,8 @@ USAGE_TEXT = """Usage: python3 RNAsfbinv [Options]
     -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
     --verbose : Additional info message on simulation process
     --debug : Debug information
-    -l <log file path> : Logging information will be written to a given file path (rewrites file if exists)"""  # TODO: add example for -m
+    -l <log file path> : Logging information will be written to a given file path (rewrites file if exists)
+    --length <length diff> : The resulting sequence size is target structure length +- length diff (default it 0)"""  # TODO: add example for -m
 
 
 DEF_NO_ITER = 100
@@ -56,7 +57,7 @@ def generate_arg_map(argv):
     item_index = index('-h')
     if item_index is not None:
         arg_map['error'] = 'Help'
-    # -l <log file path
+    # -l <log file path>
     item_index = index('-l')
     if item_index is not None:
         if item_index + 1 >= len(argv):
@@ -154,7 +155,21 @@ def generate_arg_map(argv):
             arg_map['error'] = '-s <starting sequence> and -r do not work together'
             return arg_map
         arg_map['random'] = True
-
+    else:
+        arg_map['random'] = False
+    # --length <length>
+    item_index = index('--length')
+    if item_index is not None:
+        if item_index + 1 >= len(argv):
+            arg_map['error'] = '--length require maximum length offset'
+        try:
+            length = int(argv[item_index + 1])
+        except ValueError:
+            arg_map['error'] = '-t maximum length offset should be an integer'
+            return arg_map
+        arg_map['vlength'] = length
+    else:
+        arg_map['vlength'] = 0
     # -o <output log file> TODO: replace
     #item_index = index('-o')
     #if item_index is not None:

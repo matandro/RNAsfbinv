@@ -5,6 +5,7 @@ enter description
 
 import random
 import IUPAC
+import enum
 
 '''
 1) select motif? / select index -> identify motif? (single / double on stem)
@@ -13,13 +14,32 @@ import IUPAC
 '''
 
 
+class Action(enum.Enum):
+    REPLACE = 1
+    ADD = 2
+    REMOVE = 3
+
+
 def perturbate(current_sequence, match_tree, options):
-    mutated_sequence = simple_point_mutation(current_sequence)
+    min_length = len(options.get('target_structure')) - options.get('vlength')
+    max_length = len(options.get('target_structure')) + options.get('vlength')
+    actions = [Action.REPLACE]
+    if len(current_sequence) < max_length:
+        actions.append(Action.ADD)
+    if len(current_sequence) > min_length:
+        actions.append(Action.REMOVE)
+    mutated_sequence = simple_point_mutation(current_sequence, random.choice(actions))
     return mutated_sequence
 
 
-def simple_point_mutation(sequence):
-    index = random.randint(0, len(sequence) - 1)
-    sequence = sequence[:index] + random.choice(IUPAC.IUPAC_RNA_BASE.replace(sequence[index], '')) + \
-               sequence[index + 1:]
+def simple_point_mutation(old_sequence, action=Action.REPLACE):
+    index = random.randint(0, len(old_sequence) - 1)
+    if action == Action.REPLACE:
+        sequence = old_sequence[:index] + random.choice(IUPAC.IUPAC_RNA_BASE.replace(old_sequence[index], '')) + \
+                   old_sequence[index + 1:]
+    elif action == Action.ADD:
+        sequence = old_sequence[:index] + random.choice(IUPAC.IUPAC_RNA_BASE.replace(old_sequence[index], '')) + \
+                   old_sequence[index:]
+    elif action == Action.REMOVE:
+        sequence = old_sequence[:index] + old_sequence[index + 1:]
     return sequence
