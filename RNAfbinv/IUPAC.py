@@ -36,7 +36,7 @@ IUPAC_DNA_MAP = {'A': IUPAC_DNA_A, 'C': IUPAC_DNA_C, 'G': IUPAC_DNA_G, 'T': IUPA
 # delete - insert from sequence two (gap on sequence one)
 
 
-def check_valid_sequence(sequence):
+def is_valid_sequence(sequence):
     for c in sequence.upper():
         if c not in IUPAC_ALL:
             return False

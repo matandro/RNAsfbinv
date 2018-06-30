@@ -42,11 +42,11 @@ class Tree:
     def add_children(self, children):
         self.children.extend(children)
 
-    def print_full(self):
+    def full_str(self):
         res = "{}{} {}{} [".format('{})'.format(self.index) if self.index is not None else '', self.value, self.mode,
                                    ':{}'.format(self.value_align) if self.value_align is not None else '')
         for child in self.children:
-            res += child.print_full()
+            res += child.full_str()
             if child != self.children[-1]:
                 res += ", "
         res += "]"
@@ -95,7 +95,6 @@ def def_delete_func(x, is_target=False):
 # cmp_func : a function that receives 2 tree values and returns the comparison score
 # merge_func : a function that receives 2 tree values and returns a merged consensus
 # delete_func : a function that receives a single tree value and a boolean marking false as source tree and True as target
-
 class AlignmentRules:
     def __init__(self, minmax_func=max, delete_func=def_delete_func, cmp_func=def_cmp,
                  merge_func=def_merge):
@@ -230,4 +229,4 @@ if __name__ == "__main__":
     print("Tree two: {}".format(test_tree_two))
     align_tree, align_score = align_trees(test_tree_one, test_tree_two, ar)
     print("Matched only Joined Tree ({}): {}".format(align_score, align_tree))
-    print("Full Joined Tree ({}): {}".format(align_score, align_tree.print_full()))
+    print("Full Joined Tree ({}): {}".format(align_score, align_tree.full_str()))

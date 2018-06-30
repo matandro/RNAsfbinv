@@ -7,10 +7,8 @@ import logging
 import random
 import math
 
-import shapiro_tree_aligner
-import tree_aligner
+import shapiro_tree_aligner, vienna, tree_aligner, shapiro_generator
 import mutator
-import vienna
 import IUPAC
 
 options = {}
@@ -25,6 +23,8 @@ def update_options(arg_map):
     vienna_fold = options.get('RNAfold')
     logger.debug("Updating option map: {}".format(arg_map))
 
+def stop():
+    options['stop'] = True
 
 def generate_random_start(length):
     return ''.join(random.choices(IUPAC.IUPAC_RNA_BASE, k=length))
@@ -64,6 +64,8 @@ def calculate_neutrality(sequence, target_structure):
     seq_length = len(sequence)
     for i in range(0, seq_length):
         for c in IUPAC.IUPAC_RNA_BASE:
+            if options.get('stop') is not None:
+                return 0.0
             if sequence[i] != c:
                 new_seq = sequence[:i] + c + sequence[i + 1:]
                 structure = vienna_fold.fold(new_seq)[options.get('fold')]
@@ -88,7 +90,7 @@ def score_sequence(sequence, target_tree):
     return tree, score
 
 
-def print_res(result_seq):
+def generate_res_str(result_seq):
     fold_map = vienna_fold.fold(result_seq)
     result_struct = fold_map.get(options.get('fold'))
     mutational_robustness = calculate_neutrality(result_seq, result_struct)
@@ -101,8 +103,8 @@ def print_res(result_seq):
                  "Tree edit distance: {}\nResult tree: {}\nAligned tree ({}): {}" \
         .format(result_seq, result_struct, fold_map.get("{}_energy".format(options.get('fold'))),
                 mutational_robustness, bp_dist, tree_edit_distance, result_tree, score, tree)
-    print(print_data)
     logger.info(print_data)
+    return print_data
 
 
 ALPHA = 2.0
@@ -127,10 +129,34 @@ def acceptance_probability(old_score, new_score, temperature, k):
         return math.exp(-diff / (k * temperature))
 
 
+def merge_motifs(target_tree, motifs):
+    def get_motif(motif_index):
+        for motif in motifs:
+            if motif.get('index') == motif_index:
+                return motif
+        return None
+
+    tree_stack = [target_tree]
+    index = 0
+    while tree_stack:
+        top = tree_stack.pop()
+        for child in top.children[::-1]:
+            tree_stack.append(child)
+        found_motif = get_motif(index)
+        if found_motif is not None:
+            if top.value.size == found_motif.get('length') and \
+                    top.value.name == found_motif.get('name'):
+                top.value.preserve = True
+            else:
+                return False
+        index += 1
+    return True
+
+
 def simulated_annealing():
     if len(options) == 0:
         logger.fatal('Options not passed to simulated annealing. must call update options before')
-        return
+        return None
     # init rng
     rng_seed = options.get('rng')
     if rng_seed is not None:
@@ -142,22 +168,32 @@ def simulated_annealing():
     current_sequence = options.get('starting_sequence')
     if current_sequence is None and options.get('random'):
         current_sequence = generate_random_start(len(options['target_structure']))
-    else:
+    elif current_sequence is None:
         current_sequence = vienna.inverse(options['target_structure'],
                                           vienna.inverse_seq_ready(options['target_sequence']))
     final_result = current_sequence
     # setup target tree and get initial sequence score (and max score)
     target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])
+    if not merge_motifs(target_tree, options.get('motifs')):
+        shapiro_str = shapiro_generator.get_shapiro(options['target_structure']).shapiro
+        logging.error('Motif list does not match target structure {}\nTarget Shapiro:{}'.format(options.get('motifs'),
+                                                                                                shapiro_str))
+        return None
     _, optimal_score = shapiro_tree_aligner.align_trees(target_tree, target_tree)
     match_tree, current_score = score_sequence(current_sequence, target_tree)
     best_score = current_score
     logger.info('Initial sequence ({}): {}\nAlign tree: {}'.format(current_score, current_sequence, match_tree))
+    updater = options.get('updater')
     # main loop
     for iter in range(0, no_iterations):
+        if options.get('stop') is not None:
+            return None
         if best_score == 0:
             break
         progress = False
         for look_ahead in range(0, no_lookahead):
+            if options.get('stop') is not None:
+                return None
             new_sequence = mutator.perturbate(current_sequence, match_tree, options)
             new_tree, new_score = score_sequence(new_sequence, target_tree)
             temperature = calc_temp(iter, no_iterations)
@@ -181,17 +217,20 @@ def simulated_annealing():
         if current_score <= best_score:
             best_score = current_score
             final_result = current_sequence
-        logger.info('Iteration {} current sequence ({}): {}\nAlign tree: {}'.format(iter + 1, current_score,
+        logger.debug('Iteration {} current sequence ({}): {}\nAlign tree: {}'.format(iter + 1, current_score,
                                                                                     current_sequence, match_tree))
+        if updater is not None:
+            updater.update(iter + 1)
     # final print
+
     return final_result
 
 # TODO: Global task list
 # DONE: 1) Fix scoring to allow for grater diffs on motif based errors and sequence and add other minor impacts such as
 # DONE:    MR and energy
-# TODO: 2) Add support for settings via file (non mandatory options)
-# TODO: 3) change input via file format to have headers and additional options such as starting sequence and motifs
-# TODO: 4) Change mutation code to include issues motif locations and covariation mutations
-# TODO: 5) Optimize (1) and (4)
-# TODO: 6) Graphical interface
-# TODO: 7) Update incaRNAfbinv
+# DONE: 2) Add support for settings via file (non mandatory options)
+# DONE: 3) change input via file format to have headers and additional options such as starting sequence and motifs
+# TODO: 5) Graphical interface
+# TODO: 6) Update incaRNAfbinv
+# TODO: 7) Change mutation code to include issues motif locations and covariation mutations (is it needed?)
+# TODO: 8) Optimize (1) and (7)

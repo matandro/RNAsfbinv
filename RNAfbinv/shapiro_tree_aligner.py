@@ -2,12 +2,10 @@
 Specific AligjnmentRules for shapiro values in the tree alignments
 '''
 
-import shapiro_generator
-import tree_aligner
+import shapiro_generator, tree_aligner
 import IUPAC
 
 import logging
-import sys
 
 SEQ_PARAMS = {'match_score': 0, 'delete_penalty': 1000, 'insert_penalty': 1, 'mismatch_penalty': 1000,
               'panelty_del_N': 1, 'match_score_N': 0}
@@ -80,19 +78,19 @@ def align_sequences(sequence_one, sequence_two):
     return score_matrix[one_index][two_index], retrace(score_matrix, transition_matrix)
 
 
+LOOP_MOTIFS = 'HMBI'
+
+
 def cmp_shapiro_tree_values(value_one, value_two):
     result = None
     alignment = []
-    value_one_name = value_one.name
-    value_two_name = value_two.name
-    if value_one_name[0] == value_two_name[0] or \
-            ((value_one_name[0] == 'M' or value_one_name[0] == 'I' or value_one_name[0] == 'B' or value_one_name[
-                0] == 'H') and
-             (value_two_name[0] == 'M' or value_two_name[0] == 'I' or value_two_name[0] == 'B' or value_two_name[
-                 0] == 'H')):
+    if (value_two.preserve and value_one.name == value_two.name and value_one.size == value_two.size) or \
+            (not value_two.preserve and (value_one.name == value_two.name or
+                                         (value_one.name in LOOP_MOTIFS and value_two.name in LOOP_MOTIFS))):
         score, alignment = align_sequences(value_one.sequence, value_two.sequence)
         result = score
-    logging.debug("matched {} - {}, score {} alignment {}".format(value_one, value_two, result, alignment))
+    logging.debug("{}matched {} - {}, score {} alignment {}".format('====PRESERVE====' if value_two.preserve else '',
+                                                                    value_one, value_two, result, alignment))
     return result, alignment
 
 
@@ -100,19 +98,18 @@ def merge_shapiro_tree_values(value_one, value_two):
     return value_one
 
 
-# actually merge string and length etc...
-def smart_merge_shapiro_tree_values(value_one, value_two):
-    raise NotImplementedError
-
-
 def delete_shapiro_func(value, is_target=False):
     if is_target:
         score, align = align_sequences('', value.sequence)
-        score += 100
+        if value.preserve:
+            score += 1000
+        else:
+            score += 100
     else:
         score, align = align_sequences(value.sequence, '')
-        score += 1000
-    logging.debug("delete {} {} score {}".format(value, '(Target)' if is_target else '', score))
+        score += 100
+    logging.debug("{}delete {} {} score {}".format('====PRESERVE====' if value.preserve and is_target else '',
+                  value, '(Target)' if is_target else '', score))
     return score, align
 
 
@@ -165,6 +162,7 @@ def shapiro_to_tree(shapiro_str, shapiro_index, sequence):
 class ShapiroTreeValue:
     def __init__(self, shapiro_str_name, shapiro_index, sequence):
         self.name = shapiro_str_name[0]
+        self.preserve = False
         try:
             self.size = (int(shapiro_str_name[1:]) if shapiro_str_name[1:] != '' else 0)
         except ValueError:

@@ -10,6 +10,7 @@ __maintainer__ = "Matan Drory Retwitzer"
 __email__ = "matandro@post.bgu.ac.il"
 
 import os
+import re
 import sys
 import logging
 
@@ -26,16 +27,41 @@ USAGE_TEXT = """Usage: python3 RNAsfbinv [Options]
     -m <motif[,...]> : comma separated list of motifs to preserve,  
     -s <starting sequence> : the initial sequence for the simulated annealing process
     -r : force starting simulated annealing with a random sequence
-    -f <input file path> : path of file that includes mandatory information. if not given, the information will be requested by command line.
     -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
     --verbose : Additional info message on simulation process
     --debug : Debug information
     -l <log file path> : Logging information will be written to a given file path (rewrites file if exists)
-    --length <length diff> : The resulting sequence size is target structure length +- length diff (default it 0)"""  # TODO: add example for -m
+    --length <length diff> : The resulting sequence size is target structure length +- length diff (default it 0)
+    
+    -f <input file path> : Path of ini file that includes mandatory information. Some options can also be set via file.
+                           command line options take precedence.
+    \tList of available configurations (* are mandetory and will be requested via command line if not inserted):
+    *\tTARGET_STRUCTURE=<target structure>
+    *\tTARGET_SEQUENCE=<target sequence>
+    \tTARGET_ENERGY=<target energy>
+    \tTARGET_MR=<target mutational robustness>
+    \tSEED=<random seed>
+    \tSTARTING_SEQUENCE=<starting sequence>
+    \tITERATION=<number of simulated annealing iterations>
+    """  # TODO: add example for -m
 
 
 DEF_NO_ITER = 100
 DEF_NO_LOOKAHEAD = 4
+MOTIF_REGEXP = re.compile(r'(?P<index>[0-9]+)(?P<name>[mMhHeEiIsSbB])(?P<length>[0-9]+)$')
+
+
+def check_motif(motifs):
+    res = []
+    for motif in motifs:
+        clean = motif.strip()
+        if clean != '':
+            match = MOTIF_REGEXP.match(clean)
+            if match is None:
+                return None
+            res.append({'index': int(match.group('index')), 'name': match.group('name').upper(),
+                        'length': int(match.group('length'))})
+    return res
 
 
 # Handles argument from command line
@@ -72,9 +98,9 @@ def generate_arg_map(argv):
         logger.addHandler(file_handler)
     # --verbose or --debug (logging level info instead of warning)
     if index('--debug') is not None:
-        logger.setLevel(logging.INFO)
-    elif index('--verbose') is not None:
         logger.setLevel(logging.DEBUG)
+    elif index('--verbose') is not None:
+        logger.setLevel(logging.INFO)
     else:
         logger.setLevel(logging.WARNING)
     # -p <MFE|centroid>
@@ -109,7 +135,7 @@ def generate_arg_map(argv):
         try:
             seed = int(argv[item_index + 1])
         except ValueError:
-            arg_map['error'] = '-p RNA seed should be a long integer'
+            arg_map['error'] = '-p RNG seed should be a long integer'
             return arg_map
         arg_map['rng'] = seed
     # -t <number of look ahead attempts>
@@ -138,9 +164,14 @@ def generate_arg_map(argv):
         if item_index + 1 >= len(argv):
             arg_map['error'] = '-m requires comma separated list of motif to preserve'
             return arg_map
-        # TODO: check format for motif list
         motifs = argv[item_index + 1].split(',')
+        motifs = check_motif(motifs)
+        if motifs is None:
+            arg_map['error'] = 'motif format should be: <motif index>[M|H|E|I|S|B]<motif No of bases>,...'
+            return arg_map
         arg_map['motifs'] = motifs
+    else:
+        arg_map['motifs'] = []
     # -s <starting sequence>
     item_index = index('-s')
     if item_index is not None:
@@ -188,10 +219,11 @@ def generate_arg_map(argv):
         if item_index + 1 >= len(argv):
             arg_map['error'] = '-f requires path to input file'
             return arg_map
-        arg_map.update(read_input_file(argv[item_index + 1]))
-    else:
-        arg_map.update(read_mandatory_params())
+        temp_map = arg_map
+        arg_map = read_input_file(argv[item_index + 1])
+        arg_map.update(temp_map)
     if arg_map.get('error') is not None:
+        arg_map = read_mandatory_params(arg_map, item_index is not None)
         return arg_map
     return arg_map
 
@@ -208,19 +240,21 @@ def is_valid_structure(structure):
                 return False
         elif c != '.':
             return False
-    return True
+    return bracket_count == 0
 
 
 # changes any type of bracket that isn't round brackets into one
 def bracket_changer(change_structure):
     changed_structure = ''
     for c in change_structure:
-        if c in '{[<':
+        if c in '{[<(':
             changed_structure += '('
-        elif c in '}]>':
+        elif c in '}]>)':
             changed_structure += ')'
-        else:
+        elif c == '.':
             changed_structure += c
+        elif not c.isspace():
+            raise ValueError('Only except brackets and . (ignore whitespaces) [{}]'.format(c))
     return changed_structure
 
 
@@ -231,36 +265,77 @@ def bracket_changer(change_structure):
 # desired neutrality. -1000 means no target
 def read_input_file(input_file_path):
     input_map = {}
+
+    def generate_file_map():
+        res_map = {}
+        with open(input_file_path, 'r') as input_file:
+            for line in input_file:
+                clean_line = line.strip()
+                # ignore comments and empty lines
+                if clean_line[0] != '#' and clean_line != ';' and clean_line != '':
+                    if '=' not in clean_line:
+                        input_map['error'] = 'illegal input file format. Supports commends (starting with #) ' \
+                                             'or Key=Value lines only'
+                        return None
+                    key, value = clean_line.split('=', 1)
+                    res_map[key.strip().upper()] = value.strip()
+        return res_map
+
     if not os.path.isfile(input_file_path):
         input_map['error'] = "file {} does not exists".format(input_file_path)
     else:
-        with open(input_file_path, 'r') as input_file:
+        config_map = generate_file_map()
+        if config_map is not None:
             file_errors = []
-            structure = bracket_changer(input_file.readline().strip())
-            if not is_valid_structure(structure):
-                file_errors.append("target structure can hold '.' '(\\{\\[\\<' and ')\\}\\]\\>'" \
+            structure = config_map.get('TARGET_STRUCTURE')
+            if structure is not None:
+                structure = bracket_changer(structure)
+                if not is_valid_structure(structure):
+                    file_errors.append("target structure can hold '.' '(\\{\\[\\<' and ')\\}\\]\\>'" \
                                    " only and must be balanced")
-            input_map['target_structure'] = structure
-            sequence = input_file.readline().strip()
-            if not IUPAC.check_valid_sequence(sequence):
-                file_errors.append('target sequence must hold legal IUPAC letters')
-            if not len(structure) == len(sequence):
-                file_errors.append('sequence and structure must be at the same length')
-            input_map['target_sequence'] = sequence.upper().replace('T', 'U')
-            try:
-                target_energy = float(input_file.readline().strip())
-                input_map['target_energy'] = target_energy
-            except ValueError:
-                file_errors.append('target energy must be a floating number')
-            try:
-                target_neutrality = float(input_file.readline().strip())
-                input_map['target_neutrality'] = target_neutrality
-            except ValueError:
-                file_errors.append('target neutrality must be a floating number')
+                input_map['target_structure'] = structure
+            sequence = config_map.get('TARGET_SEQUENCE')
+            if sequence is not None:
+                if not IUPAC.is_valid_sequence(sequence):
+                    file_errors.append('target sequence must hold legal IUPAC letters')
+                if not len(structure) == len(sequence):
+                    file_errors.append('sequence and structure must be at the same length')
+                input_map['target_sequence'] = sequence.upper().replace('T', 'U')
+            target_energy = config_map.get('TARGET_ENERGY')
+            if target_energy is not None:
+                try:
+                    target_energy = float(target_energy)
+                    input_map['target_energy'] = target_energy
+                except ValueError:
+                    file_errors.append('target energy must be a floating number')
+            target_mr = config_map.get('TARGET_MR')
+            if target_mr is not None:
+                try:
+                    target_mr = float(target_mr)
+                    input_map['target_neutrality'] = target_mr
+                except ValueError:
+                    file_errors.append('target neutrality must be a floating number')
+            seed = config_map.get('SEED')
+            if seed is not None:
+                try:
+                    seed = int(seed)
+                    input_map['rng'] = seed
+                except ValueError:
+                    file_errors.append('RNG seed should be a long integer')
+            starting_sequence = config_map.get('STARTING_SEQUENCE')
+            if starting_sequence is not None:
+                input_map['starting_sequence'] = starting_sequence.upper().replace('T', 'U')
+            iteration_no = config_map.get('ITERATION')
+            if iteration_no is not None:
+                try:
+                    iteration_no = int(iteration_no)
+                    input_map['iter'] = iteration_no
+                except ValueError:
+                    file_errors.append('number of iteration should be an integer')
+
             if len(file_errors) > 0:
-                input_map['error'] = 'Input file must have 4 lines containing structure, sequence, target energy' \
-                                     ' and target neutrality. the following errors were found:\n{}' \
-                    .format('\n'.join(file_errors))
+                input_map['error'] = 'Input file must have only commend, empty and Key=Value lines.' \
+                                     'the following errors were found:\n{}'.format('\n'.join(file_errors))
     return input_map
 
 
@@ -287,29 +362,25 @@ def setup_file(out_path, formatter=logging.Formatter('%(message)s')):
 
 
 # reads mandatory parameters from command line
-def read_mandatory_params():
-    input_map = {}
-    while True:
+def read_mandatory_params(input_map, was_file):
+    while input_map.get('target_structure') is None:
         structure = bracket_changer(input('Enter structure in dot bracket notation:\n').strip())
         if is_valid_structure(structure):
             input_map['target_structure'] = structure
-            break
         print('structure must be balanced and in dot bracket notation')
-    while True:
+    while input_map.get('target_sequence') is None:
         sequence = input('Enter IUPAC format sequence restrictions (must be same length as fold):\n')
-        if IUPAC.check_valid_sequence(sequence) and len(input_map['target_structure']) == len(sequence):
+        if IUPAC.is_valid_sequence(sequence) and len(input_map['target_structure']) == len(sequence):
             input_map['target_sequence'] = sequence.upper().replace('T', 'U')
-            break
         print('sequence must be in IUPAC format and be the same length as structure')
-    while True:
+    while input_map.get('target_energy') is not None and not was_file:
         str_energy = input('Enter the desired minimum free energy in Kcal/mol (-1000 for none):\n')\
             .strip()
         try:
             input_map['target_energy'] = float(str_energy)
-            break
         except ValueError:
             print('target energy must by a floating number')
-    while True:
+    while input_map.get('target_neutrality') is not None and not was_file:
         str_neutrality = input('Enter the desired neutrality (-1000 for none):\n')\
             .strip()
         try:
@@ -335,8 +406,11 @@ def main(argv):
         # run simulated annealing
         sfb_designer.update_options(arg_map)
         designed_sequence = sfb_designer.simulated_annealing()
-        logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
-        sfb_designer.print_res(designed_sequence)
+        if designed_sequence is not None:
+            logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
+            print(sfb_designer.generate_res_str(designed_sequence))
+        else:
+            logging.error("Failed to design, Exisiting!")
         rna_folder.close()
 
 

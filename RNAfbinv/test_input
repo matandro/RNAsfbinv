@@ -1,0 +1,7 @@
+Target_structure=((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))
+Target_sequence=NNNNNNNNUNNNNNNNNNNNNNNNNNNNNNNNNUNNNUNNNNNNNNNNNNNNNNNNNNNNYNNNNNNNN
+#Target_energy=-21.0
+#Target_mr=0.91
+#Seed=1234736434
+#Starting_sequence=AGGGUGCCUGAGCCGCGCAUAUAUCGACGGGGAUUCUUCAAAAGCGCCCGCGCGGGGAAACGAAGACGA
+Iterations=500
