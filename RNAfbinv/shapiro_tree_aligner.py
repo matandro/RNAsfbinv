@@ -234,7 +234,7 @@ def align_shapiro(shapiro_source, sequence_source, shapiro_target, sequence_targ
 if __name__ == "__main__":
     '''
     logging.basicConfig(level=logging.DEBUG)
-    '''
+    
     print('Simple test 1')
     shapiro_one = shapiro_generator.get_shapiro("((((((((..((((((.......))))....))))))")
     shapiro_two = shapiro_generator.get_shapiro("((((((((..((.(((.......))))))..))..))))")
@@ -249,7 +249,7 @@ if __name__ == "__main__":
         tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}\n".format(aligned_score, aligned_tree))
-
+    
     logging.basicConfig(level=logging.DEBUG)
 
     print('Simple test 2')
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     print("Shapiro one: {}\nTree one: {}".format(shapiro_one.shapiro, tree_one))
     print("Shapiro two: {}\nTree two: {}".format(shapiro_two.shapiro, tree_two))
     print("Aligned tree ({}): {}\n".format(aligned_score, aligned_tree))
-
+    '''
     print('Test alignment distance 28 / 10')
     shapiro_one = shapiro_generator.get_shapiro("((((((((.(.(((((...((((((..((((.....)))))).))))....))))).)...))))))))")
     shapiro_two = shapiro_generator.get_shapiro("((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))")
