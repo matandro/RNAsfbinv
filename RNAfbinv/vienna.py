@@ -77,7 +77,7 @@ class LiveRNAfold:
                 line += c
         return lines
 
-    def start(self, is_circular):
+    def start(self, is_circular=False):
         param_list = [os.path.join(VIENNA_PATH, RNAFOLD_EXE), '-p', '--noPS']
         if is_circular:
             param_list.append('-c')

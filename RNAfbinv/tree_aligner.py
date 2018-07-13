@@ -271,13 +271,14 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
         all_options = [[]]
         short_list = source_children if len(source_children) <= len(target_children) else target_children
         long_list = source_children if len(source_children) > len(target_children) else target_children
-        for locations_long in itertools.combinations(range(len(long_list)), len(short_list)):
-            for locations_short in itertools.combinations(range(len(short_list)), len(short_list)):
-                m_list = [item for i, item in zip(range(len(short_list)), short_list) if i in locations_short]
-                for i, j in zip(locations_long, range(len(short_list))):
-                    m_list[j] = (m_list[j], long_list[i]) if short_list == source_children else \
-                        (long_list[i], m_list[j])
-                all_options.append(m_list)
+        for merge_size in range(1, len(short_list) + 1):
+            for locations_long in itertools.combinations(range(len(long_list)), merge_size):
+                for locations_short in itertools.combinations(range(len(short_list)), merge_size):
+                    m_list = [item for i, item in zip(range(len(short_list)), short_list) if i in locations_short]
+                    for i, j in zip(locations_long, range(len(short_list))):
+                        m_list[j] = (m_list[j], long_list[i]) if short_list == source_children else \
+                            (long_list[i], m_list[j])
+                    all_options.append(m_list)
         best_score_option = -alignment_object.minmax_func(sys.maxsize, -sys.maxsize)
         best_child_list = []
         for single_option in all_options:

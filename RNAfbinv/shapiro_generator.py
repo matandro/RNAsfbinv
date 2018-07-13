@@ -7,6 +7,18 @@ Also builds an index list for each motif
 import logging
 
 
+# Object including structure, shapiro and list of sequence indexes for each shapiro motif
+class ShapiroObject(object):
+    def __init__(self, structure, aux, shapiro, shapiro_indexes):
+        self.structure = structure
+        self.aux = aux
+        self.shapiro = shapiro
+        self.shapiro_indexes = shapiro_indexes
+
+    def __str__(self):
+        return self.structure + '\n' + self.aux + '\n' + self.shapiro + '\n' + self.shapiro_indexes
+
+
 # Increase counter by one in index map
 def _map_plus_one(orig_map, index):
     value = orig_map.get(index)
@@ -74,7 +86,7 @@ def get_aux(structure):
 
 
 # generate shapiro representation for given structure
-def get_shapiro(structure):
+def get_shapiro(structure: str) -> ShapiroObject:
     loop_size = {}  # loop sizes of a structure
     helix_size = {}  # helix sizes of a structure
     loop_degree = {0: 0}  # loop degree of a structure
@@ -150,18 +162,6 @@ def get_shapiro(structure):
     shapiro += temp + 'R)'
     shapiro_indexes = temp_indexes + '[])'
     return ShapiroObject(structure, "".join(aux_list), shapiro, shapiro_indexes)
-
-
-# Object including structure, shapiro and list of sequence indexes for each shapiro motif
-class ShapiroObject(object):
-    def __init__(self, structure, aux, shapiro, shapiro_indexes):
-        self.structure = structure
-        self.aux = aux
-        self.shapiro = shapiro
-        self.shapiro_indexes = shapiro_indexes
-
-    def __str__(self):
-        return self.structure + '\n' + self.aux + '\n' + self.shapiro + '\n' + self.shapiro_indexes
 
 
 # for testing purposes

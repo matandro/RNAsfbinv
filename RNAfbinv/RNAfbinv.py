@@ -674,8 +674,8 @@ class RNAfbinvGUI(tk.Frame):
             target_seq = image_data[1]
             indexes = []
             # gather motif index list
-            shapiro_indexes = shapiro_generator.get_shapiro(real_stuct).shapiro_indexes. \
-                                  replace('(', '').split(')')[:-2][::-1]
+            shapiro_indexes = shapiro_generator.get_shapiro(real_stuct).shapiro_indexes.\
+                replace('(', '').split(')')[:-2][::-1]
             shapiro_indexes = [str_list_to_int_list(item[1:-1].split(',')) for item in shapiro_indexes]
             widget = event.widget
             selected = widget.curselection()
