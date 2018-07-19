@@ -108,8 +108,6 @@ venv.bak/
 dot.ps
 
 #test files
-RNAfbinv/test_tkinter.py
-RNAfbinv/test.py
-RNAfbinv/log
-RNAfbinv/TestVARNA.jpg
-RNAfbinv/TestVARNAIndex.jpg
+test_tkinter.py
+test.py
+log

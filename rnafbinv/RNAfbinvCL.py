@@ -14,9 +14,9 @@ import re
 import sys
 import logging
 
-import IUPAC
-import vienna
-import sfb_designer
+from rnafbinv import IUPAC
+from rnafbinv import vienna
+from rnafbinv import sfb_designer
 
 USAGE_TEXT = """Usage: python3 RNAsfbinv [Options]
     -h : Shows usage text

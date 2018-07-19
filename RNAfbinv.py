@@ -12,12 +12,8 @@ import logging
 import time
 import os
 
-import shapiro_generator
+from rnafbinv import shapiro_generator, sfb_designer, RNAfbinvCL, vienna, IUPAC
 import varna_generator
-import sfb_designer
-import RNAfbinvCL
-import vienna
-import IUPAC
 
 
 # A tk Text widget with an additional custom event for text modification
@@ -157,7 +153,7 @@ def update_motif_list(motif_list, shapiro_list):
 
 
 class RNAfbinvGUI(tk.Frame):
-    MAIN_SCREEN_TITLE = "RNAfbinv - Fragment based RNA design"
+    MAIN_SCREEN_TITLE = "rnafbinv - Fragment based RNA design"
     BASE_IMG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'img')
     NO_STRUCTURE_IMG = os.path.join(BASE_IMG, 'NoImage.png')
     ERROR_IMG = os.path.join(BASE_IMG, 'NoImage.jpg')
@@ -561,7 +557,7 @@ class RNAfbinvGUI(tk.Frame):
             return arguments
         # Target sequence
         target_seq = self.info_componenets['target_sequence'].get('1.0', tk.END).strip()
-        if len(target_seq) > 0 and len(target_seq) == len(real_stuct) and IUPAC.valid_sequence(target_seq):
+        if len(target_seq) > 0 and len(target_seq) == len(real_stuct) and IUPAC.is_valid_sequence(target_seq):
             arguments['target_sequence'] = target_seq
         elif target_seq == '':
             arguments['target_sequence'] = 'N' * len(real_stuct)

@@ -4,7 +4,7 @@ enter description
 '''
 
 import random
-import IUPAC
+from rnafbinv import IUPAC
 import enum
 
 '''

@@ -2,8 +2,8 @@
 Specific AligjnmentRules for shapiro values in the tree alignments
 '''
 
-import shapiro_generator, tree_aligner
-import IUPAC
+from rnafbinv import shapiro_generator, tree_aligner
+from rnafbinv import IUPAC
 
 import logging
 

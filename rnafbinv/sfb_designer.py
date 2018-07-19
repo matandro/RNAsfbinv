@@ -7,9 +7,9 @@ import logging
 import random
 import math
 
-import shapiro_tree_aligner, vienna, tree_aligner, shapiro_generator
-import mutator
-import IUPAC
+from rnafbinv import shapiro_tree_aligner, vienna, tree_aligner, shapiro_generator
+from rnafbinv import mutator
+from rnafbinv import IUPAC
 
 options = {}
 logger = None
@@ -23,8 +23,10 @@ def update_options(arg_map):
     vienna_fold = options.get('RNAfold')
     logger.debug("Updating option map: {}".format(arg_map))
 
+
 def stop():
     options['stop'] = True
+
 
 def generate_random_start(length):
     return ''.join(random.choices(IUPAC.IUPAC_RNA_BASE, k=length))
@@ -224,13 +226,3 @@ def simulated_annealing():
     # final print
 
     return final_result
-
-# TODO: Global task list
-# DONE: 1) Fix scoring to allow for grater diffs on motif based errors and sequence and add other minor impacts such as
-# DONE:    MR and energy
-# DONE: 2) Add support for settings via file (non mandatory options)
-# DONE: 3) change input via file format to have headers and additional options such as starting sequence and motifs
-# TODO: 5) Graphical interface
-# TODO: 6) Update incaRNAfbinv
-# TODO: 7) Change mutation code to include issues motif locations and covariation mutations (is it needed?)
-# TODO: 8) Optimize (1) and (7)
