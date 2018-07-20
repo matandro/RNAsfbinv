@@ -112,7 +112,7 @@ class AlignmentRules(Generic[TreeValue]):
 
 
 # iterative tree alignment
-def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules) -> Tuple[int, Tree]:
+def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules) -> Tuple[Tree, float]:
     def index_tree(tree: Tree) -> List[Tree]:
         node_stack = [tree]
         node_list = []
