@@ -4,7 +4,8 @@ enter description
 '''
 
 import random
-from rnafbinv import IUPAC
+from rnafbinv import IUPAC, tree_aligner
+from typing import Dict, Any
 import enum
 
 '''
@@ -20,7 +21,7 @@ class Action(enum.Enum):
     REMOVE = 3
 
 
-def perturbate(current_sequence, match_tree, options):
+def perturbate(current_sequence: str, match_tree: tree_aligner.Tree, options: Dict[str, Any]) -> str:
     min_length = len(options.get('target_structure')) - options.get('vlength')
     max_length = len(options.get('target_structure')) + options.get('vlength')
     actions = [Action.REPLACE]
@@ -32,7 +33,7 @@ def perturbate(current_sequence, match_tree, options):
     return mutated_sequence
 
 
-def simple_point_mutation(old_sequence, action=Action.REPLACE):
+def simple_point_mutation(old_sequence: str, action: Action=Action.REPLACE) -> str:
     index = random.randint(0, len(old_sequence) - 1)
     if action == Action.REPLACE:
         sequence = old_sequence[:index] + random.choice(IUPAC.IUPAC_RNA_BASE.replace(old_sequence[index], '')) + \

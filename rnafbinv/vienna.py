@@ -7,10 +7,9 @@ import os
 import re
 import sys
 import logging
+from typing import Dict, List
 from subprocess import Popen, PIPE
 
-
-VIENNA_PATH = "D:\\Programs\\ViennaRNA\\"#""/opt/algorithm/ViennaRNA/bin/"
 
 RNAFOLD_EXE = "RNAfold"
 INVERSE_EXE = "RNAinverse"
@@ -20,11 +19,12 @@ if sys.platform =='win32':
     INVERSE_EXE += '.exe'
 
 
-def set_vienna_path(path):
-    VIENNA_PATH = path
+def set_vienna_path(path: str):
+    logging.debug('Setting vienna path to ' + path)
+    os.environ['VIENNA_PATH'] = path
 
 
-def output_fold_analyze(output):
+def output_fold_analyze(output: str) -> Dict[str, str]:
     structure = {}
     try:
         lines = output.split('\n')
@@ -61,7 +61,7 @@ class LiveRNAfold:
     def __del__(self):
         self.close()
 
-    def _read_until_ready(self):
+    def _read_until_ready(self) -> List[str]:
         lines = []
         done = False
         line = ''
@@ -77,8 +77,8 @@ class LiveRNAfold:
                 line += c
         return lines
 
-    def start(self, is_circular=False):
-        param_list = [os.path.join(VIENNA_PATH, RNAFOLD_EXE), '-p', '--noPS']
+    def start(self, is_circular: bool=False):
+        param_list = [os.path.join(os.getenv('VIENNA_PATH', ""), RNAFOLD_EXE), '-p', '--noPS']
         if is_circular:
             param_list.append('-c')
         logging.debug("Running multi run RNAfold: {}".format(param_list))
@@ -95,7 +95,7 @@ class LiveRNAfold:
             self.proc.kill()
             self.proc = None
 
-    def fold(self, sequence):
+    def fold(self, sequence: str) -> Dict[str, str]:
         logging.debug("Folding multi run RNAfold: {}".format(sequence))
         self.proc.stdin.write('{}\n'.format(sequence))
         self.proc.stdin.flush()
@@ -105,10 +105,10 @@ class LiveRNAfold:
 
 
 # single use call to RNA fold TODO: add another version that runs on the same client to avoid popen
-def fold(sequence, is_circular=False):
+def fold(sequence: str, is_circular: bool=False) -> Dict[str, str]:
     structure_map = None
     try:
-        param_list = [os.path.join(VIENNA_PATH, RNAFOLD_EXE), '-p', '--noPS']
+        param_list = [os.path.join(os.getenv('VIENNA_PATH', ""), RNAFOLD_EXE), '-p', '--noPS']
         if is_circular:
             param_list.append('-c')
         with Popen(param_list, stdout=PIPE, stdin=PIPE, universal_newlines=True) as proc:
@@ -120,7 +120,7 @@ def fold(sequence, is_circular=False):
     return structure_map
 
 
-def output_inverse_analyze(output):
+def output_inverse_analyze(output: str) -> str:
     try:
         lines = output.split('\\n')
         res_sequence = lines[0].split(' ')[0].strip()
@@ -129,12 +129,12 @@ def output_inverse_analyze(output):
     return res_sequence
 
 
-def inverse(structure, sequence=None):
+def inverse(structure: str, sequence: str=None) -> str:
     res_sequence = None
     try:
         if sequence is None:
             sequence = 'N' * structure
-        param_list = [os.path.join(VIENNA_PATH, INVERSE_EXE)]
+        param_list = [os.path.join(os.getenv('VIENNA_PATH', ""), INVERSE_EXE)]
         with Popen(param_list, stdout=PIPE, stdin=PIPE, universal_newlines=True) as proc:
             logging.debug("Running RNAinverse: {}".format(param_list))
             inverse_output, errs = proc.communicate("{}\n{}\n@\n".format(structure, sequence))
@@ -148,7 +148,7 @@ def inverse(structure, sequence=None):
     return res_sequence
 
 
-def inverse_seq_ready(sequence):
+def inverse_seq_ready(sequence: str) -> str:
     res_sequence = ''
     for c in sequence.upper():
         if res_sequence in 'ACGU':

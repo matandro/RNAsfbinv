@@ -10,8 +10,12 @@ import logging
 import os
 
 
-JAVA_PATH = 'java'
 VARNA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'VARNAv3-93.jar')
+
+
+def set_java_path(path: str):
+    logging.debug('Setting java path to', path)
+    os.environ['JAVA_PATH'] = path
 
 
 def generate_temp_ct(structure, sequence, title=''):
@@ -46,7 +50,7 @@ def call_varna(structure, sequence, out_file_path, index_str=None, title=''):
     ct_file = None
     try:
         ct_file = generate_temp_ct(structure, sequence, title)
-        param_list = [JAVA_PATH, '-cp', VARNA_PATH, 'fr.orsay.lri.varna.applications.VARNAcmd',
+        param_list = [os.path.join(os.getenv('JAVA_PATH', ""), 'java'), '-cp', VARNA_PATH, 'fr.orsay.lri.varna.applications.VARNAcmd',
                       '-i', ct_file, '-o', out_file_path, '-resolution', '5.0']
         if index_str is not None:
             param_list = param_list + ['-basesStyle1', 'fill=#00FF00,outline=#FF0000', '-applyBasesStyle1on', index_str]

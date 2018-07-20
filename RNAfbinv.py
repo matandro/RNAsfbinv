@@ -7,6 +7,7 @@ from tkinter.ttk import Progressbar
 from tkinter import messagebox
 from PIL import ImageTk, Image
 import tkinter as tk
+import configparser
 import threading
 import logging
 import time
@@ -53,17 +54,17 @@ class RunFrame:
         self.progress.grid(row=1, column=0, sticky='nw')
         self.progress['value'] = 0
         self.progress["maximum"] = total_runs
-        self.design_sequence = None
+        self.design_result = None
         # self.main_grid.grid(row=run_index, column=0, sticky='news')
         root.update()
         # calculate item box above
         height_above = self.master_canvas.bbox('all')
-        logging.debug("creating windows bbox:", height_above, "run id:", self.run_index)
+        logging.debug("creating windows bbox: {} run id: {}".format(height_above, self.run_index))
         if height_above is None:
             height_above = 0
         else:
             height_above = height_above[3]
-        logging.debug("creating windows height:", height_above, "run id:", self.run_index)
+        logging.debug("creating windows height: {} run id: {}".format(height_above, self.run_index))
         self.item_index = self.master_canvas.create_window(0, height_above, width=self.main_grid.winfo_reqwidth(),
                                                            height=self.main_grid.winfo_reqheight(),
                                                            window=self.main_grid, anchor='nw')
@@ -81,7 +82,7 @@ class RunFrame:
         self.master_canvas.config(scrollregion=self.master_canvas.bbox("all"))
         return
 
-    def update_res(self, designed_sequence, result_str):
+    def update_res(self, design_result):
         # save old height
         item_frame = RunFrame.all_frames[self.run_index]
         old_box = self.master_canvas.bbox(item_frame)
@@ -92,7 +93,7 @@ class RunFrame:
         left_frame = tk.Frame(self.main_grid)
         left_frame.grid(row=0, column=0, sticky='wnes')
         self.text = tk.Text(left_frame, height=6, width=125, background='white smoke', bd=0)
-        self.text.insert(tk.END, result_str)
+        self.text.insert(tk.END, str(design_result))
         self.text['state'] = tk.DISABLED
         self.text.grid(row=0, column=0, sticky='wnes')
         scrollb = tk.Scrollbar(left_frame, command=self.text.yview)
@@ -100,7 +101,7 @@ class RunFrame:
         self.text['yscrollcommand'] = scrollb.set
         right_frame = tk.Frame(self.main_grid)
         right_frame.grid(row=0, column=1, sticky='wnes')
-        self.design_sequence = designed_sequence
+        self.design_result = design_result
         right_frame.columnconfigure(1, weight=1)
         generate_image_button = tk.Button(right_frame, text="Generate image", command=self.show_design)
         generate_image_button.grid(row=0, column=0, sticky='e')
@@ -528,7 +529,8 @@ class RNAfbinvGUI(tk.Frame):
             if self.keep_running:
                 if designed_sequence is not None:
                     logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
-                    item.update_res(designed_sequence, sfb_designer.generate_res_str(designed_sequence))
+                    result_object = sfb_designer.generate_res_object(designed_sequence)
+                    item.update_res(result_object)
                 else:
                     item.update_fail()
         rna_folder.close()
@@ -683,8 +685,20 @@ class RNAfbinvGUI(tk.Frame):
             self.info_componenets.get('image_canvas').create_image(0, 0, image=img, anchor='nw', tag='FRONT_IMG')
 
 
+def read_config():
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini')
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    path_section = config['PATH']
+    vienna.set_vienna_path(path_section.get('VIENNA', ''))
+    java = path_section.get('JAVA')
+    if java is not None and java != '':
+        varna_generator.set_java_path(java)
+
+
 if __name__ == '__main__':
-    # logging.basicConfig(level=logging.DEBUG)
+    #logging.basicConfig(level=logging.DEBUG)
+    read_config()
     root = tk.Tk()
     root.grid_propagate(False)
     my_gui = RNAfbinvGUI(root)

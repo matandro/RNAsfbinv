@@ -92,21 +92,32 @@ def score_sequence(sequence, target_tree):
     return tree, score
 
 
-def generate_res_str(result_seq):
-    fold_map = vienna_fold.fold(result_seq)
-    result_struct = fold_map.get(options.get('fold'))
-    mutational_robustness = calculate_neutrality(result_seq, result_struct)
-    target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])
-    result_tree = shapiro_tree_aligner.get_tree(result_struct, result_seq)
-    tree, score = shapiro_tree_aligner.align_trees(result_tree, target_tree)
-    tree_edit_distance = tree_aligner.get_align_tree_distance(tree)
-    bp_dist = bp_distance(result_struct, options['target_structure'])
-    print_data = "Result:\n{}\n{}\nFold energy: {}\nMutational Robustness: {}\nBP distance: {}\n" \
-                 "Tree edit distance: {}\nResult tree: {}\nAligned tree ({}): {}" \
-        .format(result_seq, result_struct, fold_map.get("{}_energy".format(options.get('fold'))),
-                mutational_robustness, bp_dist, tree_edit_distance, result_tree, score, tree)
-    logger.info(print_data)
-    return print_data
+class RnafbinvResult:
+    def __init__(self, sequence: str):
+        self.sequence = sequence
+        fold_map = vienna_fold.fold(sequence)
+        self.fold_type = options.get('fold')
+        self.energy = fold_map.get("{}_energy".format(options.get('fold')))
+        self.structure = fold_map.get(options.get('fold'))
+        self.mutational_robustness = calculate_neutrality(self.sequence, self.structure)
+        target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])
+        self.result_tree = shapiro_tree_aligner.get_tree(self.structure, self.sequence)
+        self.align_tree, self.score = shapiro_tree_aligner.align_trees(self.result_tree, target_tree)
+        self.tree_edit_distance = tree_aligner.get_align_tree_distance(self.align_tree)
+        self.bp_dist = bp_distance(self.structure, options['target_structure'])
+
+    def __str__(self):
+        print_data = "Result:\n{}\n{}\nFold energy: {}\nMutational Robustness: {}\nBP distance: {}\n" \
+                     "Tree edit distance: {}\nResult tree: {}\nAligned tree ({}): {}" \
+            .format(self.sequence, self.structure, self.energy, self.mutational_robustness, self.bp_dist,
+                    self.tree_edit_distance, self.result_tree, self.score, self.align_tree)
+        return print_data
+
+
+def generate_res_object(result_seq):
+    res_object = RnafbinvResult(result_seq)
+    logger.info(str(res_object))
+    return res_object
 
 
 ALPHA = 2.0

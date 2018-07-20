@@ -13,6 +13,8 @@ import os
 import re
 import sys
 import logging
+import shlex
+from typing import List
 
 from rnafbinv import IUPAC
 from rnafbinv import vienna
@@ -66,6 +68,8 @@ def check_motif(motifs):
 
 # Handles argument from command line
 def generate_arg_map(argv):
+    def check_mandetory():
+        error = None
     def index(key):
         try:
             i = argv.index(key)
@@ -222,7 +226,7 @@ def generate_arg_map(argv):
         temp_map = arg_map
         arg_map = read_input_file(argv[item_index + 1])
         arg_map.update(temp_map)
-    if arg_map.get('error') is not None:
+    if arg_map.get('error') is None:
         arg_map = read_mandatory_params(arg_map, item_index is not None)
         return arg_map
     return arg_map
@@ -373,14 +377,14 @@ def read_mandatory_params(input_map, was_file):
         if IUPAC.is_valid_sequence(sequence) and len(input_map['target_structure']) == len(sequence):
             input_map['target_sequence'] = sequence.upper().replace('T', 'U')
         print('sequence must be in IUPAC format and be the same length as structure')
-    while input_map.get('target_energy') is not None and not was_file:
+    while input_map.get('target_energy') is None and not was_file:
         str_energy = input('Enter the desired minimum free energy in Kcal/mol (-1000 for none):\n')\
             .strip()
         try:
             input_map['target_energy'] = float(str_energy)
         except ValueError:
             print('target energy must by a floating number')
-    while input_map.get('target_neutrality') is not None and not was_file:
+    while input_map.get('target_neutrality') is None and not was_file:
         str_neutrality = input('Enter the desired neutrality (-1000 for none):\n')\
             .strip()
         try:
@@ -391,7 +395,8 @@ def read_mandatory_params(input_map, was_file):
     return input_map
 
 
-def main(argv):
+def designer(argv: List[str]) -> sfb_designer.RnafbinvResult:
+    result = None
     logging.info("Starting RNAsfbinv, arguments: {}".format(argv))
     arg_map = generate_arg_map(argv)
     logging.info("Run argument map:\n{}".format(arg_map))
@@ -408,13 +413,20 @@ def main(argv):
         designed_sequence = sfb_designer.simulated_annealing()
         if designed_sequence is not None:
             logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
-            print(sfb_designer.generate_res_str(designed_sequence))
+            result = sfb_designer.generate_res_object(designed_sequence)
+            print(str(result))
         else:
             logging.error("Failed to design, Exisiting!")
         rna_folder.close()
+    return result
+
+
+def main(command_line_args: str) -> sfb_designer.RnafbinvResult:
+    return designer(shlex.split(command_line_args))
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING,
                         format='%(levelname)s:%(asctime)s - %(message)s')
-    main(sys.argv[1:])
+    vienna.set_vienna_path('D:\\Programs\\ViennaRNA')
+    designer(sys.argv[1:])
