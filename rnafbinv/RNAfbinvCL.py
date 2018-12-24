@@ -20,13 +20,15 @@ from rnafbinv import IUPAC
 from rnafbinv import vienna
 from rnafbinv import sfb_designer
 
-USAGE_TEXT = """Usage: python3 RNAsfbinv [Options]
+USAGE_TEXT = """Usage: python3 RNAsfbinvCL [Options]
     -h : Shows usage text
     -i <number of iterations> : sets the number of simulated annealing iterations (default is 100)
     --seed <random number generator seed> : a long number that is used by the random number generator
     -t <number of look ahead attempts> : number of look head mutation attempts for each iteration (default is 4)
     -e : designs a circular RNA (default is False)
-    -m <motif[,...]> : comma separated list of motifs to preserve,  
+    -m <motif[,...]> : comma separated list of motifs to preserve
+                       motif: <motif No>[M|H|E|I|S|B]<motif No of bases>
+                       Use ListMotifs.listMotif(structure) to retrieve a list of legal motifs for a given structure,  
     -s <starting sequence> : the initial sequence for the simulated annealing process
     -r : force starting simulated annealing with a random sequence
     -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
@@ -45,7 +47,7 @@ USAGE_TEXT = """Usage: python3 RNAsfbinv [Options]
     \tSEED=<random seed>
     \tSTARTING_SEQUENCE=<starting sequence>
     \tITERATION=<number of simulated annealing iterations>
-    """  # TODO: add example for -m
+    """
 
 
 DEF_NO_ITER = 100
@@ -134,12 +136,12 @@ def generate_arg_map(argv):
     item_index = index('--seed')
     if item_index is not None:
         if item_index + 1 >= len(argv):
-            arg_map['error'] = '-p requires RNG seed'
+            arg_map['error'] = '--seed requires RNG seed'
             return arg_map
         try:
             seed = int(argv[item_index + 1])
         except ValueError:
-            arg_map['error'] = '-p RNG seed should be a long integer'
+            arg_map['error'] = '--seed RNG seed should be a long integer'
             return arg_map
         arg_map['rng'] = seed
     # -t <number of look ahead attempts>
@@ -171,7 +173,7 @@ def generate_arg_map(argv):
         motifs = argv[item_index + 1].split(',')
         motifs = check_motif(motifs)
         if motifs is None:
-            arg_map['error'] = 'motif format should be: <motif index>[M|H|E|I|S|B]<motif No of bases>,...'
+            arg_map['error'] = 'motif format should be: <motif No>[M|H|E|I|S|B]<motif No of bases>,...'
             return arg_map
         arg_map['motifs'] = motifs
     else:
@@ -409,11 +411,10 @@ def designer(argv: List[str]) -> sfb_designer.RnafbinvResult:
         rna_folder.start(arg_map.get('circular'))
         arg_map['RNAfold'] = rna_folder
         # run simulated annealing
-        sfb_designer.update_options(arg_map)
-        designed_sequence = sfb_designer.simulated_annealing()
+        designed_sequence = sfb_designer.simulated_annealing(arg_map)
         if designed_sequence is not None:
             logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
-            result = sfb_designer.generate_res_object(designed_sequence)
+            result = sfb_designer.generate_res_object(designed_sequence, arg_map)
             print(str(result))
         else:
             logging.error("Failed to design, Exisiting!")

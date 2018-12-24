@@ -7,24 +7,14 @@ import logging
 import random
 import math
 
+from typing import Dict, Any
+
 from rnafbinv import shapiro_tree_aligner, vienna, tree_aligner, shapiro_generator
 from rnafbinv import mutator
 from rnafbinv import IUPAC
 
-options = {}
-logger = None
-vienna_fold = None
 
-
-def update_options(arg_map):
-    global options, logger, vienna_fold
-    options.update(arg_map)
-    logger = options.get('logger')
-    vienna_fold = options.get('RNAfold')
-    logger.debug("Updating option map: {}".format(arg_map))
-
-
-def stop():
+def stop(options: Dict[str, Any]):
     options['stop'] = True
 
 
@@ -61,7 +51,7 @@ def bp_distance(structure_a, structure_b):
     return dist
 
 
-def calculate_neutrality(sequence, target_structure):
+def calculate_neutrality(sequence: str, target_structure: str, options: Dict[str, Any]):
     accum = 0
     seq_length = len(sequence)
     for i in range(0, seq_length):
@@ -70,14 +60,14 @@ def calculate_neutrality(sequence, target_structure):
                 return 0.0
             if sequence[i] != c:
                 new_seq = sequence[:i] + c + sequence[i + 1:]
-                structure = vienna_fold.fold(new_seq)[options.get('fold')]
+                structure = options.get('RNAfold').fold(new_seq)[options.get('fold')]
                 accum += bp_distance(structure, target_structure)
     return 1.0 - (accum / (pow(seq_length, 2) * 3.0))
 
 
-def score_sequence(sequence, target_tree):
+def score_sequence(sequence: str, target_tree: tree_aligner.Tree, options: Dict[str, Any]):
     # Align score tree alignment + sequence alignment
-    fold_map = vienna_fold.fold(sequence)
+    fold_map = options.get('RNAfold').fold(sequence)
     structure = fold_map[options.get('fold')]
     tree, score = shapiro_tree_aligner.align_trees(shapiro_tree_aligner.get_tree(structure, sequence),
                                                    target_tree)
@@ -93,13 +83,13 @@ def score_sequence(sequence, target_tree):
 
 
 class RnafbinvResult:
-    def __init__(self, sequence: str):
+    def __init__(self, sequence: str, options: Dict[str, Any]):
         self.sequence = sequence
-        fold_map = vienna_fold.fold(sequence)
+        fold_map = options.get('RNAfold').fold(sequence)
         self.fold_type = options.get('fold')
         self.energy = fold_map.get("{}_energy".format(options.get('fold')))
         self.structure = fold_map.get(options.get('fold'))
-        self.mutational_robustness = calculate_neutrality(self.sequence, self.structure)
+        self.mutational_robustness = calculate_neutrality(self.sequence, self.structure, options)
         target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])
         self.result_tree = shapiro_tree_aligner.get_tree(self.structure, self.sequence)
         self.align_tree, self.score = shapiro_tree_aligner.align_trees(self.result_tree, target_tree)
@@ -107,16 +97,17 @@ class RnafbinvResult:
         self.bp_dist = bp_distance(self.structure, options['target_structure'])
 
     def __str__(self):
-        print_data = "Result:\n{}\n{}\nFold energy: {}\nMutational Robustness: {}\nBP distance: {}\n" \
+        print_data = "Result:\n{}\n{}\nFold energy: {}\nMutationa" \
+                     "flol Robustness: {}\nBP distance: {}\n" \
                      "Tree edit distance: {}\nResult tree: {}\nAligned tree ({}): {}" \
             .format(self.sequence, self.structure, self.energy, self.mutational_robustness, self.bp_dist,
                     self.tree_edit_distance, self.result_tree, self.score, self.align_tree)
         return print_data
 
 
-def generate_res_object(result_seq):
-    res_object = RnafbinvResult(result_seq)
-    logger.info(str(res_object))
+def generate_res_object(result_seq: str, options: Dict[str, Any]) -> RnafbinvResult:
+    res_object = RnafbinvResult(result_seq, options)
+    options.get('logger').info(str(res_object))
     return res_object
 
 
@@ -166,9 +157,9 @@ def merge_motifs(target_tree, motifs):
     return True
 
 
-def simulated_annealing():
+def simulated_annealing(options: Dict[str, Any]):
     if len(options) == 0:
-        logger.fatal('Options not passed to simulated annealing. must call update options before')
+        options.get('logger').fatal("Options object was not properly initiated. ")
         return None
     # init rng
     rng_seed = options.get('rng')
@@ -193,9 +184,9 @@ def simulated_annealing():
                                                                                                 shapiro_str))
         return None
     _, optimal_score = shapiro_tree_aligner.align_trees(target_tree, target_tree)
-    match_tree, current_score = score_sequence(current_sequence, target_tree)
+    match_tree, current_score = score_sequence(current_sequence, target_tree, options)
     best_score = current_score
-    logger.info('Initial sequence ({}): {}\nAlign tree: {}'.format(current_score, current_sequence, match_tree))
+    options.get('logger').info('Initial sequence ({}): {}\nAlign tree: {}'.format(current_score, current_sequence, match_tree))
     updater = options.get('updater')
     # main loop
     for iter in range(0, no_iterations):
@@ -208,10 +199,11 @@ def simulated_annealing():
             if options.get('stop') is not None:
                 return None
             new_sequence = mutator.perturbate(current_sequence, match_tree, options)
-            new_tree, new_score = score_sequence(new_sequence, target_tree)
+            new_tree, new_score = score_sequence(new_sequence, target_tree, options)
             temperature = calc_temp(iter, no_iterations)
             probability = acceptance_probability(current_score, new_score, temperature, len(current_sequence))
-            logger.debug("iteration {} - TEMP: {} PROBABILITY: {}".format(iter + 1, temperature, probability))
+            options.get('logger').debug("iteration {} - TEMP: {} PROBABILITY: {}".format(iter + 1, temperature,
+                                                                                         probability))
             if random.random() < probability:
                 progress = True
                 break
@@ -230,7 +222,7 @@ def simulated_annealing():
         if current_score <= best_score:
             best_score = current_score
             final_result = current_sequence
-        logger.debug('Iteration {} current sequence ({}): {}\nAlign tree: {}'.format(iter + 1, current_score,
+        options.get('logger').debug('Iteration {} current sequence ({}): {}\nAlign tree: {}'.format(iter + 1, current_score,
                                                                                     current_sequence, match_tree))
         if updater is not None:
             updater.update(iter + 1)

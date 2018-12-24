@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 
-setuptools.setup(name='rnafbinv', version='2.0b5',
+setuptools.setup(name='rnafbinv', version='2.0b6',
                  description="Fragment based RNA designer",
                  url="https://github.com/matandro/RNAsfbinv",
                  long_description=long_description,
@@ -12,6 +12,7 @@ setuptools.setup(name='rnafbinv', version='2.0b5',
                  author="Matan Drory Retwitzer",
                  author_email="matandro@post.bgu.ac.il",
                  packages=['rnafbinv'],
+                 script=['bin/RNAfbinv'],
                  classifiers=(
                      "Programming Language :: Python :: 3",
                      "License :: OSI Approved :: MIT License",

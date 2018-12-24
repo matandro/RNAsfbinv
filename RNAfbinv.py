@@ -181,6 +181,7 @@ class RNAfbinvGUI(tk.Frame):
         # create content
         self.create_query_widgets()
         self.keep_running = False
+        self.arguments = None
 
     def create_query_widgets(self):
         def create_label_tb(parent, label_text):
@@ -502,7 +503,7 @@ class RNAfbinvGUI(tk.Frame):
         if answer is not None and answer:
             try:
                 self.keep_running = False
-                sfb_designer.stop()
+                sfb_designer.stop(self.arguments)
                 # sleep 100 milliseconds to let main algorithm reach it's last update call
                 time.sleep(0.1)
                 if self.run_thread is not None:
@@ -524,12 +525,12 @@ class RNAfbinvGUI(tk.Frame):
                 break
             # run simulated annealing
             arguments['updater'] = item
-            sfb_designer.update_options(arguments)
-            designed_sequence = sfb_designer.simulated_annealing()
+            self.arguments = arguments
+            designed_sequence = sfb_designer.simulated_annealing(arguments)
             if self.keep_running:
                 if designed_sequence is not None:
                     logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
-                    result_object = sfb_designer.generate_res_object(designed_sequence)
+                    result_object = sfb_designer.generate_res_object(designed_sequence, arguments)
                     item.update_res(result_object)
                 else:
                     item.update_fail()

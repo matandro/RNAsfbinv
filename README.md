@@ -50,23 +50,33 @@ shapiro_tree_aligner.align_trees(source_tree, tree_target, alignment_rules)
 ### Command line arguments:
 
 ```
--h : Shows usage text
--i <number of iterations> : sets the number of simulated annealing iterations (default is 100)
---seed <random number generator seed> : a long number that is used by the random number generator
--t <number of look ahead attempts> : number of look head mutation attempts for each iteration (default is 4)
--e : designs a circular RNA (default is False)
--m <motif[,...]> : comma separated list of motifs to preserve,
--s <starting sequence> : the initial sequence for the simulated annealing process
--r : force starting simulated annealing with a random sequence
--p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
---verbose : Additional info message on simulation process
---debug : Debug information
--l <log file path> : Logging information will be written to a given file path (rewrites file if exists)
---length <length diff> : The resulting sequence size is target structure length +- length diff (default it 0)
-
--f <input file path> : Path of ini file that includes mandatory information. Some options can also be set via file.
-                       command line options take precedence.
---cl : Uses command line version (Only relevant for wrapper)
+Usage: python3 RNAsfbinvCL [Options]
+    -h : Shows usage text
+    -i <number of iterations> : sets the number of simulated annealing iterations (default is 100)
+    --seed <random number generator seed> : a long number that is used by the random number generator
+    -t <number of look ahead attempts> : number of look head mutation attempts for each iteration (default is 4)
+    -e : designs a circular RNA (default is False)
+    -m <motif[,...]> : comma separated list of motifs to preserve
+                       motif: <motif No>[M|H|E|I|S|B]<motif No of bases>
+                       Use ListMotifs.listMotif(structure) to retrieve a list of legal motifs for a given structure,  
+    -s <starting sequence> : the initial sequence for the simulated annealing process
+    -r : force starting simulated annealing with a random sequence
+    -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
+    --verbose : Additional info message on simulation process
+    --debug : Debug information
+    -l <log file path> : Logging information will be written to a given file path (rewrites file if exists)
+    --length <length diff> : The resulting sequence size is target structure length +- length diff (default it 0)
+    
+    -f <input file path> : Path of ini file that includes mandatory information. Some options can also be set via file.
+                           command line options take precedence.
+    List of available configurations (* are mandetory and will be requested via command line if not inserted):
+    *TARGET_STRUCTURE=<target structure>
+    *TARGET_SEQUENCE=<target sequence>
+    TARGET_ENERGY=<target energy>
+    TARGET_MR=<target mutational robustness>
+    SEED=<random seed>
+    STARTING_SEQUENCE=<starting sequence>
+    ITERATION=<number of simulated annealing iterations>
 ```
 
 ### File input:
