@@ -97,7 +97,8 @@ class LiveRNAfold:
 
     def fold(self, sequence: str) -> Dict[str, str]:
         logging.debug("Folding multi run RNAfold: {}".format(sequence))
-        self.proc.stdin.write('{}\n'.format(sequence))
+        write_line = "{}\n".format(sequence)
+        self.proc.stdin.write(write_line)
         self.proc.stdin.flush()
         lines = self._read_until_ready()
         structure_map = output_fold_analyze('\n'.join(lines))
@@ -105,15 +106,23 @@ class LiveRNAfold:
 
 
 # single use call to RNA fold TODO: add another version that runs on the same client to avoid popen
-def fold(sequence: str, is_circular: bool=False) -> Dict[str, str]:
+def fold(sequence: str, is_circular: bool=False, structure_constraints: str = None) -> Dict[str, str]:
+    if structure_constraints is not None and len(structure_constraints) != len(sequence):
+        return None
     structure_map = None
     try:
-        param_list = [os.path.join(os.getenv('VIENNA_PATH', ""), RNAFOLD_EXE), '-p', '--noPS']
+        param_list = [os.path.join(os.getenv('VIENNA_PATH', ""), RNAFOLD_EXE), '-p', '--noPS', '-C']
         if is_circular:
             param_list.append('-c')
         with Popen(param_list, stdout=PIPE, stdin=PIPE, universal_newlines=True) as proc:
             logging.debug("Running RNAfold: {}".format(param_list))
-            fold_output, errs = proc.communicate("{}\n@\n".format(sequence))
+            write_line = "{}\n".format(sequence)
+            if structure_constraints is not None:
+                write_line += "{}\n".format(structure_constraints)
+            else:
+                write_line += "{}\n".format('.' * len(sequence))
+            write_line += "\n@\n"
+            fold_output, errs = proc.communicate(write_line)
             structure_map = output_fold_analyze(fold_output)
     except OSError as e:
         logging.error("Failed to run: '{}'. ERROR: {}".format(param_list, e.errno))
@@ -168,15 +177,19 @@ if __name__ == "__main__":
 
     # TEST RNAfold RUN PER POPEN
     print("Run per popen:\n{}\n".format(fold(test_sequence)))
-    test_structure = '((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))'
+    test_constraints = '..............................................................((((((........' \
+                       '......)))))).......................................................'
+    print("Run per popen with constraints:\n{}\n".format(fold(test_sequence, structure_constraints=test_constraints)))
+
     # TEST RNAfold MULTI RUN PER POPEN
     multi_folder = LiveRNAfold()
     multi_folder.start(False)
     print("Run 1 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence)))
-    print("Run 2 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence[: int(len(test_sequence) / 2)])))
-    print("Run 3 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence[int(len(test_sequence) / 2):])))
+    print("Run 3 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence[: int(len(test_sequence) / 2)])))
+    print("Run 4 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence[int(len(test_sequence) / 2):])))
     multi_folder.close()
     # TEST RNAinverse
+    test_structure = '((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))'
     test_sequence = 'NNNNNNNNuNNNNNNNNNNNNNNNNNNNNNNNNuNNNuNNNNNNNNNNNNNNNNNNNNNNyNNNNNNNN'
     print("RNAinverse:\n{}\n".format(inverse(test_structure, test_sequence)))
 

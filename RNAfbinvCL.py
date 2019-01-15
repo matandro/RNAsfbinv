@@ -23,5 +23,4 @@ def read_config():
 
 read_config()
 result = RNAfbinvCL.main(' '.join(sys.argv[1:]))
-print(str(result))
 

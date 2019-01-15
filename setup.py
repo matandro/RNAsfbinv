@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 
-setuptools.setup(name='rnafbinv', version='2.0b6',
+setuptools.setup(name='rnafbinv', version='2.0b8',
                  description="Fragment based RNA designer",
                  url="https://github.com/matandro/RNAsfbinv",
                  long_description=long_description,

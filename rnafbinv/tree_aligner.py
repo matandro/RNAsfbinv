@@ -134,7 +134,8 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
             if non_del_child is not None and del_child == non_del_child:
                 continue
             del_transition_node = None
-            tree_stack: List[Tuple[Tree, Tree]] = [(del_child, None)]
+            # tree_stack: List[Tuple[Tree, Tree]] = [(del_child, None)]
+            tree_stack = [(del_child, None)]
             cost = 0
             while tree_stack:
                 curr_node, parent_node = tree_stack.pop()
