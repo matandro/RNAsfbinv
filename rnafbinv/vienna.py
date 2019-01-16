@@ -111,7 +111,8 @@ def fold(sequence: str, is_circular: bool=False, structure_constraints: str = No
         return None
     structure_map = None
     try:
-        param_list = [os.path.join(os.getenv('VIENNA_PATH', ""), RNAFOLD_EXE), '-p', '--noPS', '-C']
+        param_list = [os.path.join(os.getenv('VIENNA_PATH', ""), RNAFOLD_EXE), '-p', '--noPS', '-C',
+                      '--enforceConstraint']
         if is_circular:
             param_list.append('-c')
         with Popen(param_list, stdout=PIPE, stdin=PIPE, universal_newlines=True) as proc:
