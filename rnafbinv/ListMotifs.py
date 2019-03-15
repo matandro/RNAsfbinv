@@ -7,6 +7,7 @@ import sys
 import RNAfbinvCL
 import shapiro_tree_aligner
 from typing import List
+import shapiro_generator
 
 def listMotif(structure:str) -> List[str]:
     if not RNAfbinvCL.is_valid_structure(structure):
@@ -32,7 +33,8 @@ if __name__ == '__main__':
         sys.exit(-1)
     structure = RNAfbinvCL.bracket_changer(sys.argv[1].strip().strip("'").strip('"'))
     results = listMotif(structure)
-    print("Listing motifs for structure {}:".format(structure))
+    print("Listing motifs:\nstructure {}:\nshapiro {}:"
+          "\nMotif List:".format(structure, shapiro_generator.get_shapiro(structure).shapiro))
     index = 1
     for result in results:
         print("{}) {}".format(index, result))

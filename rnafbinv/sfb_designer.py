@@ -172,9 +172,13 @@ def simulated_annealing(options: Dict[str, Any]):
     current_sequence = options.get('starting_sequence')
     if current_sequence is None and options.get('random'):
         current_sequence = generate_random_start(len(options['target_structure']))
-    elif current_sequence is None:
-        current_sequence = vienna.inverse(options['target_structure'],
-                                          vienna.inverse_seq_ready(options['target_sequence']))
+    # Vienna starts the process
+    current_sequence = vienna.inverse(options['target_structure'],
+                                      vienna.inverse_seq_ready(options['target_sequence'], current_sequence))
+    #print("Structure: {}\nsequence: {}\nstart: {}\ninverse: {}".format(options['target_structure'],
+    #                                                                   options['target_sequence'],
+    #                                                                   options.get('starting_sequence'),
+    #                                                                   current_sequence))
     final_result = current_sequence
     # setup target tree and get initial sequence score (and max score)
     target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])

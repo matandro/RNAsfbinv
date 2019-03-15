@@ -25,7 +25,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+Test_Input
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -111,3 +111,4 @@ dot.ps
 test_tkinter.py
 test.py
 log
+/Test_Input

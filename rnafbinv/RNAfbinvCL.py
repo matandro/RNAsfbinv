@@ -70,8 +70,8 @@ def check_motif(motifs):
 
 # Handles argument from command line
 def generate_arg_map(argv):
-    def check_mandetory():
-        error = None
+    #def check_mandetory():
+    #    error = None
     def index(key):
         try:
             i = argv.index(key)
@@ -406,12 +406,15 @@ def designer(argv: List[str]) -> sfb_designer.RnafbinvResult:
     if error is not None:
         usage(error)
     else:
+        arg_map.get("logger").debug("Argument map:\n{}".format(arg_map))
         # init RNAfold
-        rna_folder = vienna.LiveRNAfold()
+        rna_folder = vienna.LiveRNAfold(arg_map.get("logger"))
         rna_folder.start(arg_map.get('circular'))
         arg_map['RNAfold'] = rna_folder
         # run simulated annealing
+        arg_map.get("logger").debug("Starting simulated_annealing\nArguments: {}".format(arg_map))
         designed_sequence = sfb_designer.simulated_annealing(arg_map)
+        arg_map.get("logger").debug("Finished simulated_annealing\nSequence: {}".format(designed_sequence))
         if designed_sequence is not None:
             logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
             result = sfb_designer.generate_res_object(designed_sequence, arg_map)

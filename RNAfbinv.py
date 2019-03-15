@@ -516,7 +516,7 @@ class RNAfbinvGUI(tk.Frame):
             self.create_query_widgets()
 
     def run_all(self, arguments, progression_list):
-        rna_folder = vienna.LiveRNAfold()
+        rna_folder = vienna.LiveRNAfold(logging)
         rna_folder.start(False)
         arguments['RNAfold'] = rna_folder
         arguments['logger'] = logging
@@ -526,7 +526,9 @@ class RNAfbinvGUI(tk.Frame):
             # run simulated annealing
             arguments['updater'] = item
             self.arguments = arguments
+            logging.debug("Starting simulated_annealing\nArguments: {}".format(arguments))
             designed_sequence = sfb_designer.simulated_annealing(arguments)
+            logging.debug("Finished simulated_annealing\nSequence: {}".format(designed_sequence))
             if self.keep_running:
                 if designed_sequence is not None:
                     logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
