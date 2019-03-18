@@ -614,7 +614,7 @@ class RNAfbinvGUI(tk.Frame):
             arguments['vlength'] = 0
         # Starting sequence
         if self.info_componenets['is_start_seq'].get() != 0:
-            starting_sequence = self.info_componenets['start_seq'].get(1.0, tk.END)
+            starting_sequence = self.info_componenets['start_seq'].get(1.0, tk.END).strip()
             if IUPAC.is_valid_sequence(starting_sequence):
                 arguments['starting_sequence'] = starting_sequence
             else:
