@@ -58,7 +58,7 @@ def common_dna_code(dna_one: str, dna_two: str) -> List[str]:
 
 
 def agree(char_one, char_two, match_score_N, match_score, mismatch_penalty):
-    if len(common_dna_code(char_one, char_two)) > 0:
+    if common_dna_code(char_one, char_two):
         if char_two == 'N':
             return match_score_N
         else:

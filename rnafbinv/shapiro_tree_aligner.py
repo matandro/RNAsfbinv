@@ -257,10 +257,10 @@ def get_matching_indexes(aligned_tree):
                     for source_char, target_char in zip(source_part, target_part):
                         if source_char != '-':
                             if target_char != '-' and target_char != 'N':
-                                if IUPAC.common_dna_code(source_char, target_char) == '':
-                                    unmatching_index.append(source_index + 1)
-                                else:
+                                if IUPAC.common_dna_code(source_char, target_char):
                                     matching_index.append(source_index + 1)
+                                else:
+                                    unmatching_index.append(source_index + 1)
                             source_index += 1
                     start_index += 1
     logging.debug("matching: {}\nunmatching: {}\naligned tree: {}".format(matching_index, unmatching_index,
