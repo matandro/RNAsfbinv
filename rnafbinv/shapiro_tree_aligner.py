@@ -15,6 +15,8 @@ def align_single_seq(seq_one: str, seq_two: str):
     best_score = IUPAC.get_best_score(alignment_matrix)
     best_alignment = IUPAC.generate_optimal_alignments(seq_one, seq_two, return_single=True, minmax_func=min,
                                                        score_matrix=alignment_matrix, **SEQ_PARAMS)
+    # We generate single optimal alignment, remove list (Put none if there is none, TODO:possible?)
+    best_alignment = None if not best_alignment else best_alignment[0]
     #logging.debug("Aligning '{}' to '{}' (Score: {})\nresult: {}".format(seq_one, seq_two, best_score, best_alignment))
     return best_score, best_alignment
 
@@ -228,6 +230,42 @@ def align_shapiro(shapiro_source, sequence_source, shapiro_target, sequence_targ
     tree_source = shapiro_to_tree(sequence_source.shapiro, shapiro_source.shapiro_indexesm, sequence_source)
     tree_target = shapiro_to_tree(shapiro_target.shapiro, shapiro_target.shapiro_indexesm, sequence_target)
     return tree_aligner.align_trees(tree_source, tree_target, alignment_rules)
+
+
+def get_matching_indexes(aligned_tree):
+    def break_consecutive(the_list):
+        res_list = []
+        for i in range(0, len(the_list)):
+            if i == 0:
+                res_list.append(the_list[i])
+            elif the_list[i] > the_list[i-1] + 1:
+                res_list.append(the_list[i])
+        return res_list
+    matching_index = []
+    unmatching_index = []
+    tree_stack = [aligned_tree]
+    while tree_stack:
+        top = tree_stack.pop()
+        for child in top.children:
+            tree_stack.append(child)
+        if top.mode == 'M':
+            start_list = break_consecutive(top.value.index_list)
+            start_index = 0
+            for source_part, target_part in top.value_align[::-1]:
+                if source_part.replace('-', '') != '':
+                    source_index = start_list[start_index]
+                    for source_char, target_char in zip(source_part, target_part):
+                        if source_char != '-':
+                            if target_char != '-' and target_char != 'N':
+                                if IUPAC.common_dna_code(source_char, target_char) == '':
+                                    unmatching_index.append(source_index + 1)
+                                else:
+                                    matching_index.append(source_index + 1)
+                            source_index += 1
+                    start_index += 1
+    logging.debug("matching: {}\nunmatching: {}\naligned tree: {}".format(matching_index, unmatching_index,
+                                                                          aligned_tree))
+    return matching_index, unmatching_index
 
 
 if __name__ == "__main__":

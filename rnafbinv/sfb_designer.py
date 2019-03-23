@@ -18,8 +18,12 @@ def stop(options: Dict[str, Any]):
     options['stop'] = True
 
 
-def generate_random_start(length):
-    return ''.join(random.choices(IUPAC.IUPAC_RNA_BASE, k=length))
+def generate_random_start(length: int, target_sequence: str) -> str:
+    temp = target_sequence.upper()
+    res = ''
+    for i in range(0, length):
+        res += random.choice(IUPAC.IUPAC_XNA_MAP.get(temp[i]).replace('T', ''))
+    return res
 
 
 def bp_distance(structure_a, structure_b):
@@ -43,7 +47,7 @@ def bp_distance(structure_a, structure_b):
     table_b = make_pair_table(structure_b)
     dist = 0
     for i in range(0, min(len(table_a), len(table_b))):
-        if (table_a[i] != table_b[i]):
+        if table_a[i] != table_b[i]:
             if table_a[i] > i:
                 dist += 1
             if table_b[i] > i:
@@ -170,11 +174,27 @@ def simulated_annealing(options: Dict[str, Any]):
     no_lookahead = options.get('look_ahead')
     # init initial sequence
     current_sequence = options.get('starting_sequence')
-    if current_sequence is None and options.get('random'):
-        current_sequence = generate_random_start(len(options['target_structure']))
+    if current_sequence is None:
+        if options.get('random'):
+            current_sequence = generate_random_start(len(options['target_structure']),
+                                                     options['target_sequence'].replace('T', 'U'))
+    else:
+        current_sequence = current_sequence.replace('T', 'U')
     # Vienna starts the process
-    current_sequence = vienna.inverse(options['target_structure'],
-                                      vienna.inverse_seq_ready(options['target_sequence'], current_sequence))
+    vienna_sequence = vienna.inverse(options['target_structure'],
+                                     vienna.inverse_seq_ready(options['target_sequence'],
+                                                              current_sequence))
+    # vienna might fail initiation + removing any wildcard left
+    if vienna_sequence is None or vienna_sequence == '':
+        if options.get('starting_sequence') is None:
+            current_sequence = generate_random_start(len(options['target_structure']),
+                                                     options['target_sequence'].replace('T', 'U'))
+        else:
+            current_sequence = generate_random_start(len(options['target_structure']),
+                                                     options.get('starting_sequence').replace('T', 'U'))
+    else:
+        current_sequence = generate_random_start(len(options['target_structure']),
+                                                 vienna_sequence.upper().replace('T', 'U'))
     #print("Structure: {}\nsequence: {}\nstart: {}\ninverse: {}".format(options['target_structure'],
     #                                                                   options['target_sequence'],
     #                                                                   options.get('starting_sequence'),

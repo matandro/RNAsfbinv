@@ -45,15 +45,20 @@ def generate_temp_ct(structure, sequence, title=''):
     return temp_file.name
 
 
-def call_varna(structure, sequence, out_file_path, index_str=None, title=''):
+def call_varna(structure, sequence, out_file_path, index_str=None, index_str2=None, title=''):
     res = False
     ct_file = None
     try:
         ct_file = generate_temp_ct(structure, sequence, title)
         param_list = [os.path.join(os.getenv('JAVA_PATH', ""), 'java'), '-cp', VARNA_PATH, 'fr.orsay.lri.varna.applications.VARNAcmd',
                       '-i', ct_file, '-o', out_file_path, '-resolution', '5.0']
+        if title is not None:
+            param_list = param_list + ['-title', '"{}"'.format(title)]
         if index_str is not None:
             param_list = param_list + ['-basesStyle1', 'fill=#00FF00,outline=#FF0000', '-applyBasesStyle1on', index_str]
+        if index_str2 is not None:
+            param_list = param_list + ['-basesStyle2', 'outline=#FF0000', '-applyBasesStyle2on',
+                                       index_str2]
         logging.debug("Generating VARNA image {}".format(param_list))
         with Popen(param_list) as proc:
             proc.wait()
@@ -66,7 +71,8 @@ def call_varna(structure, sequence, out_file_path, index_str=None, title=''):
     return res
 
 
-def generate_image(structure, sequence, index_list=None, title=None, output_file_path=None):
+def generate_image(structure, sequence, index_list=None, index_list2=None, title=None, output_file_path=None,
+                   out_format='jpg'):
     def generate_marked_indexes(ordered_list):
         index_str = None
         if ordered_list is not None:
@@ -96,11 +102,14 @@ def generate_image(structure, sequence, index_list=None, title=None, output_file
     res = None
     image_name = output_file_path
     if image_name is None:
-        image_file = NTF(dir='.', delete=False, suffix='.jpg', mode='w')
+        image_file = NTF(dir='.', delete=False, suffix=".{}".format(out_format), mode='w')
         image_file.close()
         image_name = image_file.name
     if call_varna(structure, sequence, image_name, title=title,
-                  index_str=generate_marked_indexes(None if index_list is None else sorted(index_list))):
+                  index_str=generate_marked_indexes(sorted(index_list) if index_list is not None and index_list
+                                                    else None),
+                  index_str2=generate_marked_indexes(sorted(index_list2) if index_list2 is not None and index_list2
+                                                     else None)):
         res = image_name
     return res
 

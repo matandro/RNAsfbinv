@@ -7,10 +7,12 @@ import os
 import re
 import sys
 import logging
+import random
 from typing import Dict, List
 from subprocess import Popen, PIPE, DEVNULL
 from threading import Thread
 from queue import Queue
+from rnafbinv import IUPAC
 
 
 RNAFOLD_EXE = "RNAfold"
@@ -218,8 +220,11 @@ if __name__ == "__main__":
     print("Run 3 multi run per popen:\n{}\n".format(multi_folder.fold(test_sequence[int(len(test_sequence) / 2):])))
     multi_folder.close()
     # TEST RNAinverse
-    test_structure = '((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))'
-    test_sequence = 'NNNNNNNNuNNNNNNNNNNNNNNNNNNNNNNNNuNNNuNNNNNNNNNNNNNNNNNNNNNNyNNNNNNNN'
+    # test_structure = '((((((((...(.(((((.......))))).)........((((((.......))))))..))))))))'
+    # test_sequence = 'NNNNNNNNuNNNNNNNNNNNNNNNNNNNNNNNNuNNNuNNNNNNNNNNNNNNNNNNNNNNyNNNNNNNN'
+    test_structure = '..((((((((......(((.......))).....((((......))))...........................(((((.......))))).....(((.......))).......))))))))..'
+    test_sequence = 'NNNNNNNYUCNGGGNNNGGNGNNNNUCCNNANCGGNNGUNNAGNNCNNGANNNNNNNNNNNNNNNNNNNNNNNGANNNNNNNNNNNNNNNNNRNCGANRGNNANAGUCYNGAUNNNARANNNNNNNN'
+    test_sequence = inverse_seq_ready(test_sequence, test_sequence)
     print("RNAinverse:\n{}\n".format(inverse(test_structure, test_sequence)))
 
 

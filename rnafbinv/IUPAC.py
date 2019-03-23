@@ -1,10 +1,11 @@
 import time
+from typing import List
 
 IUPAC_DNA_A = "A"
 IUPAC_DNA_C = "C"
 IUPAC_DNA_G = "G"
 IUPAC_DNA_T = "TU"
-IUPAC_DNA_U = "TU"
+IUPAC_DNA_U = "UT"
 IUPAC_DNA_R = "AG"
 IUPAC_DNA_Y = "CTU"
 IUPAC_DNA_S = "GC"
@@ -19,10 +20,12 @@ IUPAC_DNA_N = "AGCTU"
 IUPAC_DNA_DOT = "."
 
 IUPAC_ALL = "ACGTURYSWKMBDHVN."
+IUPAC_WILDCARD = "RYSWKMBDHVN"
+IUPAC_NO_WILDCARD = "AGCTU"
 IUPAC_DNA_BASE = 'AGCT'
 IUPAC_RNA_BASE = 'AGCU'
 
-IUPAC_DNA_MAP = {'A': IUPAC_DNA_A, 'C': IUPAC_DNA_C, 'G': IUPAC_DNA_G, 'T': IUPAC_DNA_T, 'U': IUPAC_DNA_U,
+IUPAC_XNA_MAP = {'A': IUPAC_DNA_A, 'C': IUPAC_DNA_C, 'G': IUPAC_DNA_G, 'T': IUPAC_DNA_T, 'U': IUPAC_DNA_U,
                  'R': IUPAC_DNA_R,
                  'Y': IUPAC_DNA_Y, 'S': IUPAC_DNA_S, 'W': IUPAC_DNA_W, 'K': IUPAC_DNA_K, 'M': IUPAC_DNA_M,
                  'B': IUPAC_DNA_B,
@@ -36,16 +39,17 @@ IUPAC_DNA_MAP = {'A': IUPAC_DNA_A, 'C': IUPAC_DNA_C, 'G': IUPAC_DNA_G, 'T': IUPA
 # delete - insert from sequence two (gap on sequence one)
 
 
-def is_valid_sequence(sequence):
+def is_valid_sequence(sequence: str, inc_wildcard: bool= True) -> bool:
+    legal_chars = IUPAC_ALL if inc_wildcard else IUPAC_NO_WILDCARD
     for c in sequence.upper():
-        if c not in IUPAC_ALL:
+        if c not in legal_chars:
             return False
     return True
 
 
-def common_dna_code(dna_one, dna_two):
-    code_one = IUPAC_DNA_MAP.get(dna_one)
-    code_two = IUPAC_DNA_MAP.get(dna_two)
+def common_dna_code(dna_one: str, dna_two: str) -> List[str]:
+    code_one = IUPAC_XNA_MAP.get(dna_one)
+    code_two = IUPAC_XNA_MAP.get(dna_two)
     if code_one is None:
         raise ValueError("{} is not a know IUPAC DNA code".format(dna_one))
     if code_two is None:
