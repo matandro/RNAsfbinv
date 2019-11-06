@@ -2,21 +2,43 @@
 Specific AligjnmentRules for shapiro values in the tree alignments
 '''
 
-from rnafbinv import shapiro_generator, tree_aligner
-from rnafbinv import IUPAC
+from rnafbinv import shapiro_generator, tree_aligner, IUPAC
 import logging
 
-SEQ_PARAMS = {'match_score': 0, 'delete_penalty': 1000, 'insert_penalty': 1, 'mismatch_penalty': 1000,
-              'panelty_del_N': 1, 'match_score_N': 0}
+
+def del_align_lower(s1, i1, s2, i2):
+    if s2[i2] == 'N':
+        return 1
+    elif s2[i2] == 'n':
+        if 0 < i2 < len(s2) - 1 and s2[i2 - 1] > 'Z' and s2[i2 + 1] > 'Z':
+            return 20
+    else:
+        return 1000
+
+
+def ins_align_lower(s1, i1, s2, i2):
+    if 0 < i2 < len(s2) - 1 and s2[i2 - 1] > 'Z' and s2[i2] > 'Z':
+        return 20
+    else:
+        return 1
+
+
+DEFAULT_ALIGNMENT_SCORE = IUPAC.SequenceAlignmentScore(
+    minmax_func=min,
+    match_func=lambda s1, i1, s2, i2: IUPAC.agree(s1[i1], s2[i2], 0, 0, 1000),
+    delete_func=del_align_lower,
+    insert_func=ins_align_lower)
 
 
 def align_single_seq(seq_one: str, seq_two: str):
-    alignment_matrix = IUPAC.align_iupac_dna_sequence(seq_one, seq_two, **SEQ_PARAMS, minmax_func=min)
+    alignment_matrix = IUPAC.align_iupac_dna_sequence(seq_one, seq_two,
+                                                      sequence_alignment_score=DEFAULT_ALIGNMENT_SCORE)
     best_score = IUPAC.get_best_score(alignment_matrix)
-    best_alignment = IUPAC.generate_optimal_alignments(seq_one, seq_two, return_single=True, minmax_func=min,
-                                                       score_matrix=alignment_matrix, **SEQ_PARAMS)
-    # We generate single optimal alignment, remove list (Put none if there is none, TODO:possible?)
-    best_alignment = None if not best_alignment else best_alignment[0]
+    best_alignment = IUPAC.generate_optimal_alignments(seq_one, seq_two, return_single=True,
+                                                       score_matrix=alignment_matrix,
+                                                       sequence_alignment_score=DEFAULT_ALIGNMENT_SCORE)
+    # We generate single optimal alignment
+    best_alignment = best_alignment[0]
     #logging.debug("Aligning '{}' to '{}' (Score: {})\nresult: {}".format(seq_one, seq_two, best_score, best_alignment))
     return best_score, best_alignment
 
@@ -79,7 +101,8 @@ def align_sequences(sequence_one: str, sequence_two: str):
     return score_matrix[one_index][two_index], retrace(score_matrix, transition_matrix)
 
 
-LOOP_MOTIFS = 'HMBI'
+REDUCED_MOTIFS = 'BI'
+LOOP_MOTIFS = 'HM' + REDUCED_MOTIFS
 
 
 def cmp_shapiro_tree_values(value_one, value_two):
@@ -99,16 +122,17 @@ def merge_shapiro_tree_values(value_one, value_two):
     return value_one
 
 
-def delete_shapiro_func(value, is_target=False):
+def delete_shapiro_func(value, is_target=False, reduced_min_bi=0):
     if is_target:
         score, align = align_sequences('', value.sequence)
         if value.preserve:
             score += 1000
-        else:
+        elif not (value.name in REDUCED_MOTIFS and value.size <= reduced_min_bi):
             score += 100
     else:
         score, align = align_sequences(value.sequence, '')
-        score += 100
+        if not (value.name in REDUCED_MOTIFS and value.size <= reduced_min_bi):
+            score += 100
     logging.debug("{}delete {} {} score {}".format('====PRESERVE====' if value.preserve and is_target else '',
                   value, '(Target)' if is_target else '', score))
     return score, align
@@ -229,7 +253,7 @@ def align_shapiro(shapiro_source, sequence_source, shapiro_target, sequence_targ
                                                               minmax_func=min)):
     tree_source = shapiro_to_tree(sequence_source.shapiro, shapiro_source.shapiro_indexesm, sequence_source)
     tree_target = shapiro_to_tree(shapiro_target.shapiro, shapiro_target.shapiro_indexesm, sequence_target)
-    return tree_aligner.align_trees(tree_source, tree_target, alignment_rules)
+    return align_trees(tree_source, tree_target, alignment_rules)
 
 
 def get_matching_indexes(aligned_tree):
@@ -374,5 +398,12 @@ if __name__ == "__main__":
         tree_one, tree_two,
         tree_aligner.AlignmentRules(delete_func=delete_shapiro_func, minmax_func=min,
                                     cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
+    print("Aligned tree ({}): {}".format(aligned_score, aligned_tree))
+
+    aligned_tree, aligned_score = tree_aligner.align_trees(
+        tree_one, tree_two,
+        tree_aligner.AlignmentRules(
+            delete_func=lambda t, is_target: delete_shapiro_func(t, is_target, 3),
+            minmax_func=min, cmp_func=cmp_shapiro_tree_values, merge_func=merge_shapiro_tree_values))
     print("Aligned tree ({}): {}".format(aligned_score, aligned_tree))
 

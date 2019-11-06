@@ -37,9 +37,7 @@ IUPAC_XNA_MAP = {'A': IUPAC_DNA_A, 'C': IUPAC_DNA_C, 'G': IUPAC_DNA_G, 'T': IUPA
 # mismatch - delete from sequence one and sequence two
 # insert - insert from sequence one (gap on sequence two)
 # delete - insert from sequence two (gap on sequence one)
-
-
-def is_valid_sequence(sequence: str, inc_wildcard: bool= True) -> bool:
+def is_valid_sequence(sequence: str, inc_wildcard: bool = True) -> bool:
     legal_chars = IUPAC_ALL if inc_wildcard else IUPAC_NO_WILDCARD
     for c in sequence.upper():
         if c not in legal_chars:
@@ -48,8 +46,8 @@ def is_valid_sequence(sequence: str, inc_wildcard: bool= True) -> bool:
 
 
 def common_dna_code(dna_one: str, dna_two: str) -> List[str]:
-    code_one = IUPAC_XNA_MAP.get(dna_one)
-    code_two = IUPAC_XNA_MAP.get(dna_two)
+    code_one = IUPAC_XNA_MAP.get(dna_one.upper())
+    code_two = IUPAC_XNA_MAP.get(dna_two.upper())
     if code_one is None:
         raise ValueError("{} is not a know IUPAC DNA code".format(dna_one))
     if code_two is None:
@@ -59,15 +57,25 @@ def common_dna_code(dna_one: str, dna_two: str) -> List[str]:
 
 def agree(char_one, char_two, match_score_N, match_score, mismatch_penalty):
     if common_dna_code(char_one, char_two):
-        if char_two == 'N':
+        if char_two.upper() == 'N':
             return match_score_N
         else:
             return match_score
     return mismatch_penalty
 
 
-def align_iupac_dna_sequence(seq_one, seq_two, match_score=1, delete_penalty=0, insert_penalty=0, mismatch_penalty=-1,
-                             panelty_del_N=0, match_score_N=1, minmax_func=max):
+# Object containing functions that control alignment scores for each action (match, deletion and insertion)
+# Each function receives four objects: sequence one with it's current index and sequence two with it's current index
+class SequenceAlignmentScore:
+    def __init__(self, minmax_func=max, match_func=lambda s1, i1, s2, i2: agree(s1[i1], s2[i2], 1, 1, -1),
+                 delete_func=lambda s1, i1, s2, i2: 0, insert_func=lambda s1, i1, s2, i2: 0):
+        self.minmax_func = minmax_func
+        self.match_func = match_func
+        self.delete_func = delete_func
+        self.insert_func = insert_func
+
+
+def align_iupac_dna_sequence(seq_one, seq_two, sequence_alignment_score=SequenceAlignmentScore()):
     score_matrix = [([0] * (len(seq_two) + 1)) for i in range(0, len(seq_one) + 1)]
     for one_index in range(0, len(seq_one) + 1):
         for two_index in range(0, len(seq_two) + 1):
@@ -76,18 +84,20 @@ def align_iupac_dna_sequence(seq_one, seq_two, match_score=1, delete_penalty=0, 
             choose_list = []
             # Match or mismatch (score decided by agree)
             if one_index > 0 and two_index > 0:
-                score = agree(seq_one[one_index - 1], seq_two[two_index - 1],
-                              match_score_N, match_score, mismatch_penalty)
+                score = sequence_alignment_score.match_func(seq_one, one_index - 1, seq_two, two_index - 1)
                 choose_list.append(score_matrix[one_index - 1][two_index - 1] + score)
             # insert from seq 1
             if one_index > 0:
+                insert_penalty = sequence_alignment_score.insert_func(seq_one, one_index - 1, seq_two,
+                                                                      max(two_index - 1, 0))
                 choose_list.append(score_matrix[one_index - 1][two_index] + insert_penalty)
             # "delete" from seq 2
             if two_index > 0:
                 # N is wildcard, deletion of it should be different
-                paneltry = panelty_del_N if seq_two[two_index - 1] == 'N' else delete_penalty
-                choose_list.append(score_matrix[one_index][two_index - 1] + paneltry)
-            score_matrix[one_index][two_index] = minmax_func(choose_list)
+                delete_penalty = sequence_alignment_score.delete_func(seq_one, max(one_index - 1, 0), seq_two,
+                                                                      two_index - 1)
+                choose_list.append(score_matrix[one_index][two_index - 1] + delete_penalty)
+            score_matrix[one_index][two_index] = sequence_alignment_score.minmax_func(choose_list)
     return score_matrix
 
 
@@ -101,14 +111,10 @@ class IUPACAlignmentError(Exception):
 
 
 # returns all optimal alignments
-def generate_optimal_alignments(seq_one, seq_two, score_matrix=None, match_score=1, panelty_del_N=0, match_score_N=1,
-                                delete_penalty=0, insert_penalty=0, mismatch_penalty=-1, return_single=False,
-                                minmax_func=max):
+def generate_optimal_alignments(seq_one, seq_two, score_matrix=None, sequence_alignment_score=SequenceAlignmentScore(),
+                                return_single=False):
     if score_matrix is None:
-        score_matrix = align_iupac_dna_sequence(seq_one, seq_two, match_score=match_score, match_score_N=match_score_N,
-                                                delete_penalty=delete_penalty, insert_penalty=insert_penalty,
-                                                mismatch_penalty=mismatch_penalty, panelty_del_N=panelty_del_N,
-                                                minmax_func=minmax_func)
+        score_matrix = align_iupac_dna_sequence(seq_one, seq_two, sequence_alignment_score)
     results = []
     alignment_stack = [("", "", (len(seq_one), len(seq_two)))]
     while len(alignment_stack) > 0:
@@ -123,30 +129,30 @@ def generate_optimal_alignments(seq_one, seq_two, score_matrix=None, match_score
             curr_score = score_matrix[matrix_index[0]][matrix_index[1]]
             # mismatch / match
             if matrix_index[0] > 0 and matrix_index[1] > 0:
-                temp_match_score = match_score_N if seq_two[matrix_index[1] - 1] == 'N' else match_score
-                diagonal_score = score_matrix[matrix_index[0] - 1][matrix_index[1] - 1]
-                # Match
-                if curr_score == diagonal_score + agree(seq_one[matrix_index[0] - 1], seq_two[matrix_index[1] - 1],
-                                                        match_score_N, match_score, mismatch_penalty):
+                change = sequence_alignment_score.match_func(seq_one, matrix_index[0] - 1, seq_two, matrix_index[1] - 1)
+                if curr_score == score_matrix[matrix_index[0] - 1][matrix_index[1] - 1] + change:
                     round_align_one = seq_one[matrix_index[0] - 1] + align_one
                     round_align_two = seq_two[matrix_index[1] - 1] + align_two
                     matched_this_round = True
                     round_matrix_index = (matrix_index[0] - 1, matrix_index[1] - 1)
             # insert
-            if matrix_index[0] > 0 and curr_score == score_matrix[matrix_index[0] - 1][matrix_index[1]] + \
-                    insert_penalty:
-                if matched_this_round and not return_single:
-                    alignment_stack.insert(0, (seq_one[matrix_index[0] - 1] + align_one, '-' + align_two,
-                                               (matrix_index[0] - 1, matrix_index[1])))
-                elif not matched_this_round:
-                    round_align_one = seq_one[matrix_index[0] - 1] + align_one
-                    round_align_two = '-' + align_two
-                    round_matrix_index = (matrix_index[0] - 1, matrix_index[1])
-                    matched_this_round = True
-            # delete - special case for deleting N
+            if matrix_index[0] > 0:
+                change = sequence_alignment_score.insert_func(seq_one, matrix_index[0] - 1, seq_two,
+                                                              max(matrix_index[1] - 1, 0))
+                if curr_score == score_matrix[matrix_index[0] - 1][matrix_index[1]] + change:
+                    if matched_this_round and not return_single:
+                        alignment_stack.insert(0, (seq_one[matrix_index[0] - 1] + align_one, '-' + align_two,
+                                                   (matrix_index[0] - 1, matrix_index[1])))
+                    elif not matched_this_round:
+                        round_align_one = seq_one[matrix_index[0] - 1] + align_one
+                        round_align_two = '-' + align_two
+                        round_matrix_index = (matrix_index[0] - 1, matrix_index[1])
+                        matched_this_round = True
+            # delete
             if matrix_index[1] > 0:
-                temp_del_penalty = panelty_del_N if seq_two[matrix_index[1] - 1] == 'N' else delete_penalty
-                if curr_score == score_matrix[matrix_index[0]][matrix_index[1] - 1] + temp_del_penalty:
+                change = sequence_alignment_score.delete_func(seq_one, max(matrix_index[0] - 1, 0), seq_two,
+                                                               matrix_index[1] - 1)
+                if curr_score == score_matrix[matrix_index[0]][matrix_index[1] - 1] + change:
                     if matched_this_round and not return_single:
                         alignment_stack.insert(0, ('-' + align_one, seq_two[matrix_index[1] - 1] + align_two,
                                                    (matrix_index[0], matrix_index[1] - 1)))
@@ -157,7 +163,7 @@ def generate_optimal_alignments(seq_one, seq_two, score_matrix=None, match_score
                         matched_this_round = True
             if not matched_this_round:
                 # Should NEVER arrive here, to check that we selected one of the options
-                raise IUPACAlignmentError("Score matrix, no match! {}\n{}".format((matrix_index[0], matrix_index[1] - 1)
+                raise IUPACAlignmentError("Score matrix, no match! {}\n{}".format((matrix_index[0], matrix_index[1])
                                                                                   , score_matrix))
             align_one = round_align_one
             align_two = round_align_two
@@ -168,6 +174,24 @@ def generate_optimal_alignments(seq_one, seq_two, score_matrix=None, match_score
 
 
 if __name__ == "__main__":
+    def test(i: int, seq_one: str, seq_two: str, sequence_alignment_score: SequenceAlignmentScore):
+        print("Test {}\n===========================".format(i))
+        start_time = time.process_time()
+        my_score_matrix = align_iupac_dna_sequence(seq_one, seq_two, sequence_alignment_score=sequence_alignment_score)
+        print("Score matrix ({}) took {} seconds:".format(get_best_score(my_score_matrix),
+                                                          (time.process_time() - start_time) / 1000))
+        if print_score_matrix:
+            print(my_score_matrix)
+        start_time = time.process_time()
+        alignment_list = generate_optimal_alignments(seq_one, seq_two, score_matrix=my_score_matrix,
+                                                     return_single=single_res,
+                                                     sequence_alignment_score=sequence_alignment_score)
+        print("Generating {} optimal alignment{}: took {} seconds".format('single' if single_res else 'all',
+                                                                          '' if single_res else 's',
+                                                                          (time.process_time() - start_time) / 1000))
+        for index, alignment_str in zip(range(0, len(alignment_list)), alignment_list):
+            print("alignment {}:\n{}\n{}".format(index, alignment_str[0], alignment_str[1]))
+        print('===========================\n')
     '''
     seq_a = "AGGUAGGCAUCGCGCGTTCGUACTAGTCGATCAUTGCATCGACGGGATUCGAAGCA"    # AGGUAGGCA---UCGCGCG-TT-C-GUAC-TAG--TCGATC--AUTGC-ATCGACGGGATUCGAAGCA-
     seq_b = "NNNNNNNRRRRNNNNNGGUUGCCUACGUAGGGCUCCCGCCNNNNNNNKKHHHHNNNCAU" # NNNNNNN-RRRRNNNNN-GGUUGCC-UACGUAGGG-C--UCCC---GCCNNNNNNNKKHHHHNNN-CAU
@@ -182,62 +206,65 @@ if __name__ == "__main__":
     seq_a = ''
     seq_b = 'NNGCNN'
     '''
+    count = 0
     seq_a = "AGGUAGGCAUCGCGCGTTCGUACTAGTCGATCAUTGCATCGACGGGATUCGAAGCA"  # AGGUAGGCA---UCGCGCG-TT-C-GUAC-TAG--TCGATC--AUTGC-ATCGACGGGATUCGAAGCA-
     seq_b = "NNNNNNNRRRRNNNNNGGUUGCCUACGUAGGGCUCCCGCCNNNNNNNKKHHHHNNNCAU"  # NNNNNNN-RRRRNNNNN-GGUUGCC-UACGUAGGG-C--UCCC---GCCNNNNNNNKKHHHHNNN-CAU
     single_res = True
+    print_score_matrix = False
 
     print("starting alignment:\n{}\n{}".format(seq_a, seq_b))
-    start_time = time.clock()
-    my_score_matrix = align_iupac_dna_sequence(seq_a, seq_b, delete_penalty=-50, mismatch_penalty=-100, match_score=0)
-    print("Score matrix took {} seconds:\n{}".format((time.clock() - start_time) / 1000, my_score_matrix))
-    start_time = time.clock()
-    alignment_list = generate_optimal_alignments(seq_a, seq_b, score_matrix=my_score_matrix, return_single=single_res
-                                                 , delete_penalty=-50, mismatch_penalty=-100, match_score=0)
-    print("Generating {} optimal alignment{}: took {} seconds".format('single' if single_res else 'all',
-                                                                      '' if single_res else 's',
-                                                                      (time.clock() - start_time) / 1000))
-    for index, alignment_str in zip(range(0, len(alignment_list)), alignment_list):
-        print("alignment {}:\n{}\n{}".format(index, alignment_str[0], alignment_str[1]))
+    # Test 0
+    sequence_alignment_object = SequenceAlignmentScore()
+    test(0, seq_a, seq_b, sequence_alignment_object)
+
+    # Test 1
+    sequence_alignment_object = SequenceAlignmentScore(
+        delete_func=lambda s1, i1, s2, i2: -50,
+        match_func=lambda s1, i1, s2, i2: agree(s1[i1], s2[i2], 1, 0, -100))
+    test(1, seq_a, seq_b, sequence_alignment_object)
+
     # Test 2
-    start_time = time.clock()
-    my_score_matrix = align_iupac_dna_sequence(seq_a, seq_b, delete_penalty=-100, mismatch_penalty=-100,
-                                               panelty_del_N=-1, match_score=0, insert_penalty=-1)
-    print("Score matrix took {} seconds:\n{}".format((time.clock() - start_time) / 1000, my_score_matrix))
-    start_time = time.clock()
-    alignment_list = generate_optimal_alignments(seq_a, seq_b, score_matrix=my_score_matrix, return_single=single_res
-                                                 , delete_penalty=-100, mismatch_penalty=-100,
-                                                 panelty_del_N=-1, match_score=0, insert_penalty=-1)
-    print("Generating {} optimal alignment{}: took {} seconds".format('single' if single_res else 'all',
-                                                                      '' if single_res else 's',
-                                                                      (time.clock() - start_time) / 1000))
-    for index, alignment_str in zip(range(0, len(alignment_list)), alignment_list):
-        print("alignment {}:\n{}\n{}".format(index, alignment_str[0], alignment_str[1]))
+    sequence_alignment_object = SequenceAlignmentScore(
+        delete_func=lambda s1, i1, s2, i2: -1 if s2[i2].upper() == 'N' else -100,
+        insert_func=lambda s1, i1, s2, i2: -1,
+        match_func=lambda s1, i1, s2, i2: agree(s1[i1], s2[i2], 0, 0, -100))
+    test(2, seq_a, seq_b, sequence_alignment_object)
+
     # Test 3
-    start_time = time.clock()
-    my_score_matrix = align_iupac_dna_sequence(seq_a, seq_b, delete_penalty=0, mismatch_penalty=0, match_score_N=1,
-                                               panelty_del_N=0, match_score=100, insert_penalty=0)
-    print("Score matrix took {} seconds:\n{}".format((time.clock() - start_time) / 1000, my_score_matrix))
-    start_time = time.clock()
-    alignment_list = generate_optimal_alignments(seq_a, seq_b, score_matrix=my_score_matrix, return_single=single_res,
-                                                 delete_penalty=0, mismatch_penalty=0, match_score_N=1,
-                                                 panelty_del_N=0, match_score=100, insert_penalty=0)
-    print("Generating {} optimal alignment{}: took {} seconds".format('single' if single_res else 'all',
-                                                                      '' if single_res else 's',
-                                                                      (time.clock() - start_time) / 1000))
-    for index, alignment_str in zip(range(0, len(alignment_list)), alignment_list):
-        print("alignment {}:\n{}\n{}".format(index, alignment_str[0], alignment_str[1]))
+    sequence_alignment_object = SequenceAlignmentScore(
+        match_func=lambda s1, i1, s2, i2: agree(s1[i1], s2[i2], 1, 100, 0))
+    test(3, seq_a, seq_b, sequence_alignment_object)
 
     # Test 4
-    start_time = time.clock()
-    my_score_matrix = align_iupac_dna_sequence(seq_a, seq_b, delete_penalty=100, mismatch_penalty=100, match_score_N=0,
-                                               panelty_del_N=1, match_score=0, insert_penalty=1, minmax_func=min)
-    print("Score matrix took {} seconds:\n{}".format((time.clock() - start_time) / 1000, my_score_matrix))
-    start_time = time.clock()
-    alignment_list = generate_optimal_alignments(seq_a, seq_b, score_matrix=my_score_matrix, return_single=single_res,
-                                                 delete_penalty=100, mismatch_penalty=100, match_score_N=0,
-                                                 panelty_del_N=1, match_score=0, insert_penalty=1, minmax_func=min)
-    print("Generating {} optimal alignment{}: took {} seconds".format('single' if single_res else 'all',
-                                                                      '' if single_res else 's',
-                                                                      (time.clock() - start_time) / 1000))
-    for index, alignment_str in zip(range(0, len(alignment_list)), alignment_list):
-        print("alignment {}:\n{}\n{}".format(index, alignment_str[0], alignment_str[1]))
+    sequence_alignment_object = SequenceAlignmentScore(
+        delete_func=lambda s1, i1, s2, i2: 1 if s2[i2].upper() == 'N' else 1000,
+        insert_func=lambda s1, i1, s2, i2: 1,
+        match_func=lambda s1, i1, s2, i2: agree(s1[i1], s2[i2], 0, 0, 10000),
+        minmax_func=min)
+    test(4, seq_a, seq_b, sequence_alignment_object)
+
+    # Test 5 should be same as 4
+    def del_lower(s1, i1, s2, i2):
+        if s2[i2] == 'N':
+            return 1
+        elif s2[i2] == 'n':
+            if 0 < i2 < len(s2) - 1 and s2[i2 - 1] > 'Z' and s2[i2 + 1] > 'Z':
+                return 20
+        else:
+            return 1000
+
+    sequence_alignment_object = SequenceAlignmentScore(
+        delete_func=del_lower,
+        insert_func=lambda s1, i1, s2, i2: 20 if 0 < i2 < len(s2) - 1 and s2[i2 - 1] > 'Z' and s2[i2] > 'Z' else 1,
+        match_func=lambda s1, i1, s2, i2: agree(s1[i1], s2[i2], 0, 0, 1000),
+        minmax_func=min)
+    test(5, seq_a, seq_b, sequence_alignment_object)
+
+    # Test 6 - motifs
+    seq_b = "NNNNNNNrrrrNNNNNGGUUGCCUACGUAGGGCUCCCGCCNNNNNNNKkhhhhnnncaU"
+    test(6, seq_a, seq_b, sequence_alignment_object)
+
+    # Test 7 - bug
+    seq_a = 'CAGUGU'
+    seq_b = 'auunng'
+    test(7, seq_a, seq_b, sequence_alignment_object)

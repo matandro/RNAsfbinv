@@ -47,39 +47,86 @@ from rnafbinv import shapiro_tree_aligner
 shapiro_tree_aligner.align_trees(source_tree, tree_target, alignment_rules)
 ```
 
+## GUI / Command line
+
+You can download the RNAfbinv wrapper from [RNAfbinv2.0 git repository](https://github.com/matandro/RNAsfbinv/)<br/>
+The main folder includes python code to run the GUI / command line and a configuration file:
+* RNAfbinv.py - A GUI wrapper for RNAfbinv2.0
+* RNAfbinvCL.py - A command line wrapper for RNAfbinv2.0
+* **Required** varna_generator.py - Used to generate images based on [VARNA](http://varna.lri.fr/ "VARNA rna homepage")
+* **Required** config.ini - Configuration file with paths to required software (information below).
+
+If you remove the VARNA jar or do not have java installed, images will not be generated but the design process will proceed normally.<br/><br/>
+
+To specify [vienna package](https://www.tbi.univie.ac.at/RNA/ "The ViennaRNA Package homepage") binary folder please update the 'VIENNA' parameter in config.ini (or set VIENNA_PATH environment variable)<br/>
+To specify Java binary folder please update the 'JAVA' parameter in config.ini (or set JAVA_PATH environment variable)<br/>
+To specify [VARNA](http://varna.lri.fr/ "VARNA rna homepage")/'s jar file please update the 'VARNA' parameter in config.ini (or set VARNA_PATH environment variable)<br/>
+Note that if the java or vienna package binaries are in your environment variables you may leave it empty.
+
+Example to a valid config.ini file which has java installed and within the system's path:
+'''
+[PATH]
+VIENNA=~/ViennaRNA/bin/
+#JAVA=
+VARNA=~/VARNA/VARNAv3-93.jar
+'''
+
 ### Command line arguments:
 
 ```
-Usage: python3 RNAsfbinvCL [Options]
-    -h : Shows usage text
-    -i <number of iterations> : sets the number of simulated annealing iterations (default is 100)
-    --seed <random number generator seed> : a long number that is used by the random number generator
-    -t <number of look ahead attempts> : number of look head mutation attempts for each iteration (default is 4)
-    -e : designs a circular RNA (default is False)
-    -m <motif[,...]> : comma separated list of motifs to preserve
-                       motif: <motif No>[M|H|E|I|S|B]<motif No of bases>
-                       Use ListMotifs.listMotif(structure) to retrieve a list of legal motifs for a given structure,  
-    -s <starting sequence> : the initial sequence for the simulated annealing process
-    -r : force starting simulated annealing with a random sequence
-    -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
-    --verbose : Additional info message on simulation process
-    --debug : Debug information
-    -l <log file path> : Logging information will be written to a given file path (rewrites file if exists)
-    --length <length diff> : The resulting sequence size is target structure length +- length diff (default it 0)
-    
-    -f <input file path> : Path of ini file that includes mandatory information. Some options can also be set via file.
-                           command line options take precedence.
-    List of available configurations (* are mandetory and will be requested via command line if not inserted):
-    *TARGET_STRUCTURE=<target structure>
-    *TARGET_SEQUENCE=<target sequence>
-    TARGET_ENERGY=<target energy>
-    TARGET_MR=<target mutational robustness>
-    SEED=<random seed>
-    STARTING_SEQUENCE=<starting sequence>
-    ITERATION=<number of simulated annealing iterations>
+usage: RNAfbinvCL.py [-h] [-l LOG_OUTPUT] [--verbose | --debug]
+                     [-p {MFE,centroid}] [-i ITERATIONS] [--seed SEED]
+                     [-t LOOK_AHEAD] [--reduced_bi REDUCED_BI] [-e]
+                     [--seq_motif] [-m MOTIF_LIST] [-s STARTING_SEQUENCE | -r]
+                     [--length LENGTH] [-f INPUT_FILE]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -l LOG_OUTPUT, --log_output LOG_OUTPUT
+                        Path to output log file. (default: None)
+  --verbose             Increase output verbosity. (default: False)
+  --debug               Debug level logging. (default: False)
+  -p {MFE,centroid}, --structure_type {MFE,centroid}
+                        uses RNAfold centroid or MFE folding. (default: MFE)
+  -i ITERATIONS, --iterations ITERATIONS
+                        Sets the number of simulated annealing iterations.
+                        (default: 100)
+  --seed SEED           Random seed used in the random number generator.
+                        (default: None)
+  -t LOOK_AHEAD, --look_ahead LOOK_AHEAD
+                        Number of look head mutation attempts for each
+                        iteration. (default: 4)
+  --reduced_bi REDUCED_BI
+                        Remove extra penalty for removal or addition of bulges
+                        and interior loops under the given size. Alignment
+                        penalties still occur. (default: 0)
+  -e, --circular        Designs a circular RNA. (default: False)
+  --seq_motif           Enables increased penalty for insertion or deletions
+                        within marked regions (lower case characters in
+                        sequence constraint). The feature was added to control
+                        multi base sequence constraints (sequence motifs).
+                        Only valid within a specific structural motif.
+                        (default: False)
+  -m MOTIF_LIST, --motif_list MOTIF_LIST
+                        A comma separated list of motifs that are targeted for
+                        preservation with size.Single motif format: <motif
+                        No>[M|H|E|I|S|B]<motif No of bases>. Use
+                        rnafbinv.ListMotifs.list_motifs(structure) to retrieve
+                        a list of legal motifs for a given structure.
+                        (default: [])
+  -s STARTING_SEQUENCE, --starting_sequence STARTING_SEQUENCE
+                        The initial sequence for the simulated annealing
+                        process in IUPAC nucleotide codes. (default: None)
+  -r, --random_start    Start simulated annealing with a random sequence.
+                        (default: False)
+  --length LENGTH       Maximum variation in result length compared to target
+                        structure. (default: 0)
+  -f INPUT_FILE         Path of ini file that includes mandatory information.
+                        Some options can also be set via file. command line
+                        options take precedence. (default: None)
 ```
 
-### File input:
+### Input file format (the '-f' parameter):
 
 ```
 # mandatory
@@ -92,18 +139,6 @@ SEED=<random seed>
 STARTING_SEQUENCE=<starting sequence>
 ITERATION=<number of simulated annealing iterations>
 ```
-
-## GUI / Command line
-
-You can download the RNAfbinv wrapper from [RNAfbinv2.0 user application]()<br/>
-It includes python code to run the GUI / command line and the [VARNA](http://varna.lri.fr/ "VARNA rna homepage") java package to generate 2D images.<br/>
-If you remove the VARNA jar or do not have java installed, images will not be generated but the design process will proceed normally.<br/><br/>
-
-To run command line just use the '-cl' flag for RNAfbinv.py. by default a GUI version will run.
-
-To specify Vienna package location please update the 'VIENNA' parameter in config.ini (or set VIENNA_PATH environment variable)<br/>
-To specify Java location please update the 'JAVA' parameter in config.ini (or set JAVA_PATH environment variable)<br/>
-In both cases you need to specify the folder where the binary file sits. Only needed if not specified in PATH.
 
 ## Webserver
 

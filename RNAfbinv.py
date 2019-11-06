@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 '''
-enter description
+GUI wrapper to the RNAfbinv2.0 package
 '''
 
 from tkinter.ttk import Progressbar
+from tkinter import filedialog
 from tkinter import messagebox
 from PIL import ImageTk, Image
 import tkinter as tk
@@ -40,6 +41,59 @@ class CustomText(tk.Text):
         return result
 
 
+# Image generation
+BASE_IMG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'img')
+NO_STRUCTURE_IMG = os.path.join(BASE_IMG, 'NoImage.png')
+ERROR_IMG = os.path.join(BASE_IMG, 'NoImage.jpg')
+IMAGE_SIZE = (350, 400)
+
+
+def get_no_img():
+    img = Image.open(NO_STRUCTURE_IMG)
+    resized = img.resize(IMAGE_SIZE, Image.ANTIALIAS)
+    img = ImageTk.PhotoImage(resized)
+    return img
+
+
+def generate_image(structure: str, sequence: str, index_list=None):
+    img_path = None
+    try:
+        if not index_list:
+            index_list = None
+        img_path = varna_generator.generate_image(structure, sequence, index_list)
+        img = Image.open(img_path)
+    except:
+        img = Image.open(ERROR_IMG)
+    finally:
+        resized = img.resize(IMAGE_SIZE, Image.ANTIALIAS)
+        img = ImageTk.PhotoImage(resized)
+        if img_path is not None:
+            try:
+                os.remove(img_path)
+            except OSError:
+                pass
+    return img
+
+
+# image popup
+def popup_image(res_no: int, img):
+    win = tk.Toplevel()
+    win.config(width=IMAGE_SIZE[0], height=IMAGE_SIZE[1])
+    res_text = "Result {}".format(res_no)
+    win.wm_title(res_text)
+    win.resizable(0, 0)
+    # ensure a consistent GUI size
+    win.grid_propagate(False)
+
+    img_frame = tk.Frame(win, borderwidth=2, relief=tk.GROOVE)
+    img_frame.pack_propagate(0)
+    img_frame.grid(row=0, rowspan=4, column=2, padx=10, pady=10)
+    image_canvas = tk.Canvas(img_frame, width=IMAGE_SIZE[0], height=IMAGE_SIZE[1], bg='white')
+    image_canvas.grid(row=0, column=0)
+    image_canvas.create_image(0, 0, image=img, anchor='nw', tag=res_text)
+
+
+# Frame with results
 class RunFrame:
     all_frames = []
 
@@ -69,6 +123,7 @@ class RunFrame:
                                                            height=self.main_grid.winfo_reqheight(),
                                                            window=self.main_grid, anchor='nw')
         RunFrame.all_frames.append(self.item_index)
+        self.images = [None] * total_runs
 
     def update(self, current_runs):
         self.progress['value'] = current_runs
@@ -103,7 +158,10 @@ class RunFrame:
         right_frame.grid(row=0, column=1, sticky='wnes')
         self.design_result = design_result
         right_frame.columnconfigure(1, weight=1)
-        generate_image_button = tk.Button(right_frame, text="Generate image", command=self.show_design)
+        generate_image_button = tk.Button(right_frame, text="Generate image",
+                                          command=lambda: self.show_design(self.run_index,
+                                                                           design_result.sequence,
+                                                                           design_result.structure))
         generate_image_button.grid(row=0, column=0, sticky='e')
         # self.main_grid.grid(row=run_index, column=0, sticky='wnes')
         # update window
@@ -126,7 +184,7 @@ class RunFrame:
         self.main_grid = tk.Frame(self.master_canvas, bd=1, relief=tk.GROOVE)
         self.label = tk.Label(self.main_grid, text='Run {} Failed!'.format(self.run_index + 1), justify=tk.LEFT)
         self.label.grid(row=0, column=0, sticky='wnes')
-        #self.main_grid.grid(row=self.run_index, column=0, sticky='news')
+        # self.main_grid.grid(row=self.run_index, column=0, sticky='news')
         # update window
         root.update()
         RunFrame.all_frames[self.run_index] = self.master_canvas.create_window(0, old_box[1], anchor='nw',
@@ -135,8 +193,13 @@ class RunFrame:
                                                                                window=self.main_grid)
         self.update_canvas()
 
-    def show_design(self):
-        pass
+    def show_design(self, res_no: int, sequence: str, structure: str):
+        if self.images[res_no] is None:
+            img = generate_image(structure, sequence)
+            self.images[res_no] = img
+        else:
+            img = self.images[res_no]
+        popup_image(res_no + 1, img)
 
 
 MOTIF_NAME_MAP = {'H': 'Hairpin-loop', 'S': 'Stem', 'E': 'External',
@@ -155,10 +218,6 @@ def update_motif_list(motif_list, shapiro_list):
 
 class RNAfbinvGUI(tk.Frame):
     MAIN_SCREEN_TITLE = "rnafbinv - Fragment based RNA design"
-    BASE_IMG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'img')
-    NO_STRUCTURE_IMG = os.path.join(BASE_IMG, 'NoImage.png')
-    ERROR_IMG = os.path.join(BASE_IMG, 'NoImage.jpg')
-    IMAGE_SIZE = (350, 400)
     FRAME_MIN_SIZE = (1150, 700)
     MODE_QUERY = 0
     MODE_RESULTS = 1
@@ -185,34 +244,34 @@ class RNAfbinvGUI(tk.Frame):
 
     def create_query_widgets(self):
         def create_label_tb(parent, label_text):
-            frame = tk.Frame(parent)
-            label = tk.Label(frame, text=label_text, justify=tk.LEFT)
+            iframe = tk.Frame(parent)
+            label = tk.Label(iframe, text=label_text, justify=tk.LEFT)
             label.grid(row=0, column=0, sticky='w', padx=2, pady=2)
 
-            tb = tk.Text(frame, height=5, width=80, font=('consolas', 12))
+            tb = tk.Text(iframe, height=5, width=80, font=('consolas', 12))
             tb.bind("<FocusOut>", self.on_change_custom_text)
             tb.grid(row=1, column=0, sticky='nsew', padx=2, pady=2)
 
-            scrollb = tk.Scrollbar(frame, command=tb.yview)
+            scrollb = tk.Scrollbar(iframe, command=tb.yview)
             scrollb.grid(row=1, column=1, sticky='nsew')
             tb['yscrollcommand'] = scrollb.set
-            return frame, tb
+            return iframe, tb
 
         def entry_check_combo(parent, name, text, validation, change_func, default_value=None):
-            frame = tk.Frame(parent)
+            iframe = tk.Frame(parent)
             selval = tk.IntVar(0)
             self.info_componenets['is_{}'.format(name)] = selval
-            cb = tk.Checkbutton(frame, text=text, command=change_func, variable=selval)
+            cb = tk.Checkbutton(iframe, text=text, command=change_func, variable=selval)
             cb.grid(row=0, column=0, sticky='nw', padx=2, pady=5)
-            vcmd = frame.register(validation)
+            vcmd = iframe.register(validation)
             var = tk.StringVar()
-            entry = tk.Entry(frame, validate='key', validatecommand=(vcmd, '%P', '%S'), width=6,
+            entry = tk.Entry(iframe, validate='key', validatecommand=(vcmd, '%P', '%S'), width=6,
                              state='disabled', textvariable=var)
             if default_value is not None:
                 var.set(default_value)
             self.info_componenets[name] = entry
             entry.grid(row=0, column=1, sticky='nw', padx=2, pady=5)
-            return frame
+            return iframe
 
         self.mode = self.MODE_QUERY
         # check for prior installation
@@ -277,6 +336,15 @@ class RNAfbinvGUI(tk.Frame):
         frame = entry_check_combo(advanced_frame, 'variable_length', 'Maximum length change:',
                                   self.validate_lc, self.lc_change, default_value=0)
         frame.grid(row=1, column=1, sticky='nsew')
+        frame = entry_check_combo(advanced_frame, 'max_bi', 'Bulge and interior loop no penalty(max size):',
+                                  self.validate_maxbi, self.maxbi_change, default_value=0)
+        frame.grid(row=2, column=0, sticky='nsew')
+        seq_motif_var = tk.IntVar(0)
+        self.info_componenets['seq_motif'] = seq_motif_var
+        show_advanced_check = tk.Checkbutton(advanced_frame, text='Allow sequence motifs (lower case)',
+                                             variable=seq_motif_var)
+        show_advanced_check.grid(row=2, column=1, sticky='nw')
+
         starting_seq_frame = tk.Frame(advanced_frame)
         starting_seq_var = tk.IntVar(0)
         self.info_componenets['is_start_seq'] = starting_seq_var
@@ -290,7 +358,7 @@ class RNAfbinvGUI(tk.Frame):
         starting_seq_tb.configure(state='disabled')
         self.info_componenets['start_seq'] = starting_seq_tb
         starting_seq_tb.grid(row=1, column=0, sticky='nsew', padx=2, pady=2)
-        starting_seq_frame.grid(row=2, column=0, columnspan=2, sticky='nsew')
+        starting_seq_frame.grid(row=3, column=0, columnspan=2, sticky='nsew')
 
         scrollb = tk.Scrollbar(starting_seq_frame, command=starting_seq_tb.yview)
         scrollb.grid(row=1, column=1, sticky='nsew')
@@ -300,8 +368,9 @@ class RNAfbinvGUI(tk.Frame):
         img_frame = tk.Frame(top_frame, borderwidth=2, relief=tk.GROOVE)
         img_frame.pack_propagate(0)
         img_frame.grid(row=0, rowspan=4, column=2, padx=10, pady=10)
-        no_img = self.get_no_img()
-        image_canvas = tk.Canvas(img_frame, width=self.IMAGE_SIZE[0], height=self.IMAGE_SIZE[1], bg='white')
+        no_img = get_no_img()
+        self.info_componenets['image'] = no_img
+        image_canvas = tk.Canvas(img_frame, width=IMAGE_SIZE[0], height=IMAGE_SIZE[1], bg='white')
         self.info_componenets['image_canvas'] = image_canvas
         image_canvas.grid(row=0, column=0)
         image_canvas.create_image(0, 0, image=no_img, anchor='nw', tag='FRONT_IMG')
@@ -343,12 +412,14 @@ class RNAfbinvGUI(tk.Frame):
             shapiro_list = shapiro_generator.get_shapiro(real_stuct).shapiro.replace('(', '').split(')')[:-2][::-1]
             if image_data is None or image_data != (real_stuct, target_seq, shapiro_list):
                 self.info_componenets['image_data'] = (real_stuct, target_seq, shapiro_list)
-                fold_image = self.generate_image(real_stuct, target_seq)
+                fold_image = generate_image(real_stuct, target_seq)
+                self.info_componenets['image'] = fold_image
                 # generate shapiro list from shapiro without 'R'
                 update_motif_list(motif_list, shapiro_list)
         else:
             update_motif_list(motif_list, [])
-            fold_image = self.get_no_img()
+            fold_image = get_no_img()
+            self.info_componenets['image'] = fold_image
         if fold_image is not None:
             self.info_componenets.get('image_canvas').delete("FRONT_IMG")
             self.info_componenets.get('image_canvas').create_image(0, 0, image=fold_image, anchor='nw', tag='FRONT_IMG')
@@ -384,6 +455,23 @@ class RNAfbinvGUI(tk.Frame):
             return True
         except ValueError:
             return False
+
+    def validate_maxbi(self, value, added):
+        try:
+            ival = int(value)
+            if ival < 0:
+                return False
+            return True
+        except ValueError:
+            return False
+
+    def maxbi_change(self):
+        value = self.info_componenets.get('is_max_bi').get()
+        maxbi_entry = self.info_componenets.get('max_bi')
+        if value == 0:
+            maxbi_entry.configure(state='disabled')
+        else:
+            maxbi_entry.configure(state='normal')
 
     def mr_change(self):
         value = self.info_componenets.get('is_mr').get()
@@ -490,6 +578,9 @@ class RNAfbinvGUI(tk.Frame):
         bottom_frame.grid(row=1, column=0, padx=2, pady=5)
         back_button = tk.Button(bottom_frame, text="Done", command=self.done_results)
         back_button.grid(row=0, column=0, padx=2, pady=5)
+        back_button = tk.Button(bottom_frame, text="Export", command=self.export_results, state=tk.DISABLED)
+        self.info_componenets['export_button'] = back_button
+        back_button.grid(row=0, column=1, padx=2, pady=5)
         return progression_list
 
     def on_canvas_configure(self, event):
@@ -520,6 +611,7 @@ class RNAfbinvGUI(tk.Frame):
         rna_folder.start(False)
         arguments['RNAfold'] = rna_folder
         arguments['logger'] = logging
+        self.info_componenets['result_list'] = []
         for item in progression_list:
             if not self.keep_running:
                 break
@@ -534,9 +626,24 @@ class RNAfbinvGUI(tk.Frame):
                     logging.info("Finished simulated annealing, resulting sequence: {}".format(designed_sequence))
                     result_object = sfb_designer.generate_res_object(designed_sequence, arguments)
                     item.update_res(result_object)
+                    self.info_componenets['result_list'].append(result_object)
                 else:
                     item.update_fail()
+        self.info_componenets['export_button']['state'] = tk.NORMAL
         rna_folder.close()
+
+    def export_results(self):
+        files = [('All Files', '*.*'),
+                 ('Text Document', '*.txt')]
+        with filedialog.asksaveasfile(filetypes=files, defaultextension=files) as out_file:
+            i = 0
+            out_file.write("\tscore\tbase pair distance\tshapiro distance\tfree energy\tmutational robustness\t"
+                           "aligned tree\n")
+            for result in self.info_componenets['result_list']:
+                i += 1
+                out_file.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(i, result.score, result.bp_dist,
+                                                                     result.tree_edit_distance, result.energy,
+                                                                     result.mutational_robustness, result.align_tree))
 
     def run_design(self):
         arguments = self.test_components()
@@ -563,7 +670,8 @@ class RNAfbinvGUI(tk.Frame):
         # Target sequence
         target_seq = self.info_componenets['target_sequence'].get('1.0', tk.END).strip()
         if len(target_seq) > 0 and len(target_seq) == len(real_stuct) and IUPAC.is_valid_sequence(target_seq):
-            arguments['target_sequence'] = target_seq
+            arguments['target_sequence'] = target_seq if self.info_componenets['seq_motif'].get() != 0 else \
+                target_seq.upper()
         elif target_seq == '':
             arguments['target_sequence'] = 'N' * len(real_stuct)
         else:
@@ -621,6 +729,11 @@ class RNAfbinvGUI(tk.Frame):
                 arguments['error'] = 'Starting sequence must be legal FASTA IUPAC sequence and be the same length as' \
                                      ' target structure'
                 return arguments
+        # Reduced penalty BI
+        if self.info_componenets['is_max_bi'].get() != 0:
+            arguments['reduced_bi'] = int(self.info_componenets['max_bi'].get())
+        else:
+            arguments['reduced_bi'] = 0
         # Motifs
         motif_list = []
         motif_widget = self.info_componenets['motif_list']
@@ -637,33 +750,6 @@ class RNAfbinvGUI(tk.Frame):
         arguments['look_ahead'] = 4
         return arguments
 
-    def get_no_img(self):
-        img = Image.open(self.NO_STRUCTURE_IMG)
-        resized = img.resize(self.IMAGE_SIZE, Image.ANTIALIAS)
-        img = ImageTk.PhotoImage(resized)
-        self.info_componenets['image'] = img
-        return img
-
-    def generate_image(self, structure, sequence, index_list=None):
-        img_path = None
-        try:
-            if not index_list:
-                index_list = None
-            img_path = varna_generator.generate_image(structure, sequence, index_list)
-            img = Image.open(img_path)
-        except:
-            img = Image.open(self.ERROR_IMG)
-        finally:
-            resized = img.resize(self.IMAGE_SIZE, Image.ANTIALIAS)
-            img = ImageTk.PhotoImage(resized)
-            if img_path is not None:
-                try:
-                    os.remove(img_path)
-                except OSError:
-                    pass
-        self.info_componenets['image'] = img
-        return img
-
     def motif_selected(self, event):
         def str_list_to_int_list(lst):
             return [int(lst_item.strip()) for lst_item in lst]
@@ -675,15 +761,16 @@ class RNAfbinvGUI(tk.Frame):
             target_seq = image_data[1]
             indexes = []
             # gather motif index list
-            shapiro_indexes = shapiro_generator.get_shapiro(real_stuct).shapiro_indexes.\
-                replace('(', '').split(')')[:-2][::-1]
+            shapiro_indexes = shapiro_generator.get_shapiro(real_stuct).shapiro_indexes. \
+                                  replace('(', '').split(')')[:-2][::-1]
             shapiro_indexes = [str_list_to_int_list(item[1:-1].split(',')) for item in shapiro_indexes]
             widget = event.widget
             selected = widget.curselection()
             for i in selected:
                 indexes += shapiro_indexes[i]
             # generate image and replace
-            img = self.generate_image(real_stuct, target_seq, [item + 1 for item in indexes])
+            img = generate_image(real_stuct, target_seq, [item + 1 for item in indexes])
+            self.info_componenets['image'] = img
             self.info_componenets.get('image_canvas').delete("FRONT_IMG")
             self.info_componenets.get('image_canvas').create_image(0, 0, image=img, anchor='nw', tag='FRONT_IMG')
 
@@ -697,10 +784,13 @@ def read_config():
     java = path_section.get('JAVA')
     if java is not None and java != '':
         varna_generator.set_java_path(java)
+    varna = path_section.get('VARNA')
+    if varna is not None and varna != '':
+        varna_generator.set_varna_path(varna)
 
 
 if __name__ == '__main__':
-    #logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
     read_config()
     root = tk.Tk()
     root.grid_propagate(False)

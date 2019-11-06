@@ -7,12 +7,10 @@ import os
 import re
 import sys
 import logging
-import random
 from typing import Dict, List
 from subprocess import Popen, PIPE, DEVNULL
 from threading import Thread
 from queue import Queue
-from rnafbinv import IUPAC
 
 
 RNAFOLD_EXE = "RNAfold"
@@ -128,7 +126,7 @@ class LiveRNAfold:
         return structure_map
 
 
-# single use call to RNA fold TODO: add another version that runs on the same client to avoid popen
+# single use call to RNA fold
 def fold(sequence: str, is_circular: bool=False, structure_constraints: str = None) -> Dict[str, str]:
     if structure_constraints is not None and len(structure_constraints) != len(sequence):
         return None
@@ -226,6 +224,3 @@ if __name__ == "__main__":
     test_sequence = 'NNNNNNNYUCNGGGNNNGGNGNNNNUCCNNANCGGNNGUNNAGNNCNNGANNNNNNNNNNNNNNNNNNNNNNNGANNNNNNNNNNNNNNNNNRNCGANRGNNANAGUCYNGAUNNNARANNNNNNNN'
     test_sequence = inverse_seq_ready(test_sequence, test_sequence)
     print("RNAinverse:\n{}\n".format(inverse(test_structure, test_sequence)))
-
-
-

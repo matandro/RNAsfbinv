@@ -7,7 +7,7 @@ requires an AlignmentRules object which includes functions for:
     4) Penalty for deletion from tree one
 '''
 
-import logging
+
 import sys
 from typing import List, Tuple, Callable, TypeVar, Generic
 import itertools

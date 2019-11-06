@@ -14,11 +14,16 @@ import re
 import sys
 import logging
 import shlex
-from typing import List
+from typing import List, Dict
 
-from rnafbinv import IUPAC
-from rnafbinv import vienna
-from rnafbinv import sfb_designer
+from rnafbinv import IUPAC, vienna, sfb_designer
+
+from argparse import ArgumentParser, RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter, ArgumentTypeError
+
+
+class RNAfbinvHelpFormatter(RawDescriptionHelpFormatter, ArgumentDefaultsHelpFormatter):
+    pass
+
 
 USAGE_TEXT = """Usage: python3 RNAsfbinvCL [Options]
     -h : Shows usage text
@@ -28,7 +33,7 @@ USAGE_TEXT = """Usage: python3 RNAsfbinvCL [Options]
     -e : designs a circular RNA (default is False)
     -m <motif[,...]> : comma separated list of motifs to preserve
                        motif: <motif No>[M|H|E|I|S|B]<motif No of bases>
-                       Use ListMotifs.listMotif(structure) to retrieve a list of legal motifs for a given structure,  
+                       Use ListMotifs.list_motifs(structure) to retrieve a list of legal motifs for a given structure,  
     -s <starting sequence> : the initial sequence for the simulated annealing process
     -r : force starting simulated annealing with a random sequence
     -p <MFE|centroid> : uses RNAfold centroid or MFE folding. (default is MFE)
@@ -49,28 +54,86 @@ USAGE_TEXT = """Usage: python3 RNAsfbinvCL [Options]
     \tITERATION=<number of simulated annealing iterations>
     """
 
-
 DEF_NO_ITER = 100
 DEF_NO_LOOKAHEAD = 4
 MOTIF_REGEXP = re.compile(r'(?P<index>[0-9]+)(?P<name>[mMhHeEiIsSbB])(?P<length>[0-9]+)$')
+# parser:
+parser = ArgumentParser(description='RNAfbinv2.0 is an RNA design package. The design process focuses on the motif '
+                                    'resolution instead of the classic base pair solutions. This allows for higher '
+                                    'flexibility in target structure.',
+                        epilog='Available configurations for the input file: '
+                               '(* are mandatory and will be requested via command line if not inserted):\n'
+                               '*\tTARGET_STRUCTURE=<target structure>\n'
+                               '*\tTARGET_SEQUENCE=<target sequence>\n'
+                               '\tTARGET_ENERGY=<target energy>\n'
+                               '\tTARGET_MR=<target mutational robustness>\n'
+                               '\tSEED=<random seed>\n'
+                               '\tSTARTING_SEQUENCE=<starting sequence>\n'
+                               '\tITERATION=<number of simulated annealing iterations>',
+                        formatter_class=RNAfbinvHelpFormatter)
+parser.add_argument('-l', '--log_output', help="Path to output log file.", type=str)
+log_group = parser.add_mutually_exclusive_group()
+log_group.add_argument('--verbose', help="Increase output verbosity.", action="store_true")
+log_group.add_argument('--debug', help="Debug level logging.", action="store_true")
+parser.add_argument('-p', '--structure_type', help="uses RNAfold centroid or MFE folding.", type=str,
+                    choices=['MFE', 'centroid'], default='MFE')
+parser.add_argument('-i', '--iterations', help="Sets the number of simulated annealing iterations.", type=int,
+                    default=DEF_NO_ITER)
+parser.add_argument('--seed', help="Random seed used in the random number generator.", type=int)
+parser.add_argument('-t', '--look_ahead', help="Number of look head mutation attempts for each iteration.", type=int,
+                    default=DEF_NO_LOOKAHEAD)
+parser.add_argument('--reduced_bi', help="Remove extra penalty for removal or addition of bulges and interior loops "
+                                         "under the given size. Alignment penalties still occur.", type=int, default=0)
+parser.add_argument('-e', '--circular', help="Designs a circular RNA.", action='store_true')
+parser.add_argument('--seq_motif', help="Enables increased penalty for insertion or deletions within marked regions "
+                                        "(lower case characters in sequence constraint). The feature was added to "
+                                        "control multi base sequence constraints (sequence motifs). Only valid within a"
+                                        " specific structural motif.",
+                    action='store_true')
 
 
-def check_motif(motifs):
+def verify_motif(motifs_str) -> List[Dict]:
+    motifs = motifs_str.split(',')
     res = []
     for motif in motifs:
         clean = motif.strip()
         if clean != '':
             match = MOTIF_REGEXP.match(clean)
             if match is None:
-                return None
+                raise ArgumentTypeError('Motif format should be: <motif No>[M|H|E|I|S|B]<motif No of bases>,...')
             res.append({'index': int(match.group('index')), 'name': match.group('name').upper(),
                         'length': int(match.group('length'))})
     return res
 
 
+parser.add_argument('-m', '--motif_list', help="A comma separated list of motifs that are targeted for preservation "
+                                               "with size."
+                                               "Single motif format: <motif No>[M|H|E|I|S|B]<motif No of bases>. "
+                                               "Use rnafbinv.ListMotifs.list_motifs(structure) to retrieve a list of "
+                                               "legal motifs for a given structure.", type=verify_motif, default=[])
+
+
+def verify_starting_sequence(sequence) -> str:
+    if not IUPAC.is_valid_sequence(sequence, inc_wildcard=True):
+        raise ArgumentTypeError('Starting sequence must include IUPAC nucleotide codes only.')
+    return sequence
+
+
+starting_seq_group = parser.add_mutually_exclusive_group()
+starting_seq_group.add_argument('-s', '--starting_sequence', help="The initial sequence for the simulated annealing "
+                                                                  "process in IUPAC nucleotide codes.",
+                                type=verify_starting_sequence, default=None)
+starting_seq_group.add_argument('-r', '--random_start', help="Start simulated annealing with a random sequence.",
+                                action="store_true")
+parser.add_argument('--length', help="Maximum variation in result length compared to target structure.", type=int,
+                    default=0)
+parser.add_argument('-f', dest='input_file', help='Path of ini file that includes mandatory information. Some options '
+                                                  'can also be set via file. command line options take precedence.',
+                    type=str)
+
 # Handles argument from command line
 def generate_arg_map(argv):
-    #def check_mandetory():
+    # def check_mandetory():
     #    error = None
     def index(key):
         try:
@@ -80,137 +143,59 @@ def generate_arg_map(argv):
         return i
 
     arg_map = {}
+
     logger = logging.getLogger('RNAsfbinv')
     formatter = logging.Formatter('%(levelname)s:%(asctime)s - %(message)s')
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     arg_map['logger'] = logger
-    # -h
-    item_index = index('-h')
-    if item_index is not None:
-        arg_map['error'] = 'Help'
+
+    auto_parse = parser.parse_args(argv.split())
+
     # -l <log file path>
-    item_index = index('-l')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '-l requires path for log file'
-            return arg_map
-        log_path = argv[item_index + 1]
+    if auto_parse.log_output is not None:
+        log_path = auto_parse.log_output
         if os.path.exists(log_path):
             logging.warning('Log file already exists, appending to it')
         file_handler = logging.FileHandler(log_path)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     # --verbose or --debug (logging level info instead of warning)
-    if index('--debug') is not None:
+    if auto_parse.debug:
         logger.setLevel(logging.DEBUG)
-    elif index('--verbose') is not None:
+    elif auto_parse.verbose:
         logger.setLevel(logging.INFO)
     else:
         logger.setLevel(logging.WARNING)
     # -p <MFE|centroid>
-    item_index = index('-p')
-    if item_index is not None:
-        if item_index + 1 >= len(argv) or argv[item_index + 1] not in ['MFE', 'centroid']:
-            arg_map['error'] = '-p requires either MFE or centroid'
-            return arg_map
-        arg_map['fold'] = argv[item_index + 1]
-    else:
-        arg_map['fold'] = 'MFE'
+    arg_map['fold'] = auto_parse.structure_type
     # -i <number of iterations>
-    item_index = index('-i')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '-i requires number of iterations'
-            return arg_map
-        try:
-            iterations = int(argv[item_index + 1])
-        except ValueError:
-            arg_map['error'] = '-i number of iteration should be an integer'
-            return arg_map
-        arg_map['iter'] = iterations
-    else:
-        arg_map['iter'] = DEF_NO_ITER
+    arg_map['iter'] = auto_parse.iterations
     # --seed <RNG seed, long>
-    item_index = index('--seed')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '--seed requires RNG seed'
-            return arg_map
-        try:
-            seed = int(argv[item_index + 1])
-        except ValueError:
-            arg_map['error'] = '--seed RNG seed should be a long integer'
-            return arg_map
-        arg_map['rng'] = seed
+    if auto_parse.seed is not None:
+        arg_map['rng'] = auto_parse.seed
     # -t <number of look ahead attempts>
-    item_index = index('-t')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '-t requires number of look ahead attempts'
-            return arg_map
-        try:
-            look_ahead = int(argv[item_index + 1])
-        except ValueError:
-            arg_map['error'] = '-t number of look ahead attempts should be an integer'
-            return arg_map
-        arg_map['look_ahead'] = look_ahead
-    else:
-        arg_map['look_ahead'] = DEF_NO_LOOKAHEAD
+    if auto_parse.look_ahead is not None:
+        arg_map['look_ahead'] = auto_parse.look_ahead
     # -e sets the RNA as circular
-    item_index = index('-e')
-    if item_index is not None:
-        arg_map['circular'] = True
-    else:
-        arg_map['circular'] = False
+    arg_map['circular'] = auto_parse.circular
     # -m <motif to preserve[,...]>
-    item_index = index('-m')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '-m requires comma separated list of motif to preserve'
-            return arg_map
-        motifs = argv[item_index + 1].split(',')
-        motifs = check_motif(motifs)
-        if motifs is None:
-            arg_map['error'] = 'motif format should be: <motif No>[M|H|E|I|S|B]<motif No of bases>,...'
-            return arg_map
-        arg_map['motifs'] = motifs
-    else:
-        arg_map['motifs'] = []
+    arg_map['motifs'] = auto_parse.motif_list
     # -s <starting sequence>
-    item_index = index('-s')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '-s requires starting sequence'
-            return arg_map
-        # TODO: check if sequence is legal. maybe it should only include AGCU/T. check same length?
-        arg_map['starting_sequence'] = argv[item_index + 1].upper().replace('T', 'U')
+    if auto_parse.starting_sequence is not None:
+        arg_map['starting_sequence'] = auto_parse.starting_sequence.upper().replace('T', 'U')
     # -r sets random sequence start
-    item_index = index('-r')
-    if item_index is not None:
-        if arg_map.get('starting_sequence') is not None:
-            arg_map['error'] = '-s <starting sequence> and -r do not work together'
-            return arg_map
-        arg_map['random'] = True
-    else:
-        arg_map['random'] = False
+    arg_map['random'] = auto_parse.random_start
     # --length <length>
-    item_index = index('--length')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '--length require maximum length offset'
-        try:
-            length = int(argv[item_index + 1])
-        except ValueError:
-            arg_map['error'] = '-t maximum length offset should be an integer'
-            return arg_map
-        arg_map['vlength'] = length
-    else:
-        arg_map['vlength'] = 0
+    arg_map['vlength'] = auto_parse.length
+    # --seq_motif
+    arg_map['seq_motif'] = auto_parse.seq_motif
+    # --reduced_bi
+    arg_map['reduced_bi'] = auto_parse.reduced_bi
     # -o <output log file> TODO: replace
-    #item_index = index('-o')
-    #if item_index is not None:
+    # item_index = index('-o')
+    # if item_index is not None:
     #    if item_index + 1 >= len(argv):
     #        arg_map['error'] = '-o requires path to output log file'
     #        return arg_map
@@ -219,17 +204,12 @@ def generate_arg_map(argv):
     #        arg_map['error'] = error
     #        return arg_map
     # -f <input file path>- Keep last
-
-    item_index = index('-f')
-    if item_index is not None:
-        if item_index + 1 >= len(argv):
-            arg_map['error'] = '-f requires path to input file'
-            return arg_map
+    if auto_parse.input_file is not None:
         temp_map = arg_map
-        arg_map = read_input_file(argv[item_index + 1])
+        arg_map = read_input_file(auto_parse.input_file)
         arg_map.update(temp_map)
     if arg_map.get('error') is None:
-        arg_map = read_mandatory_params(arg_map, item_index is not None)
+        arg_map = read_mandatory_params(arg_map, auto_parse.input_file is not None)
         return arg_map
     return arg_map
 
@@ -298,7 +278,7 @@ def read_input_file(input_file_path):
                 structure = bracket_changer(structure)
                 if not is_valid_structure(structure):
                     file_errors.append("target structure can hold '.' '(\\{\\[\\<' and ')\\}\\]\\>'" \
-                                   " only and must be balanced")
+                                       " only and must be balanced")
                 input_map['target_structure'] = structure
             sequence = config_map.get('TARGET_SEQUENCE')
             if sequence is not None:
@@ -306,7 +286,7 @@ def read_input_file(input_file_path):
                     file_errors.append('target sequence must hold legal IUPAC letters')
                 if not len(structure) == len(sequence):
                     file_errors.append('sequence and structure must be at the same length')
-                input_map['target_sequence'] = sequence.upper().replace('T', 'U')
+                input_map['target_sequence'] = sequence.replace('T', 'U').replace('t', 'u')
             target_energy = config_map.get('TARGET_ENERGY')
             if target_energy is not None:
                 try:
@@ -377,17 +357,17 @@ def read_mandatory_params(input_map, was_file):
     while input_map.get('target_sequence') is None:
         sequence = input('Enter IUPAC format sequence restrictions (must be same length as fold):\n')
         if IUPAC.is_valid_sequence(sequence) and len(input_map['target_structure']) == len(sequence):
-            input_map['target_sequence'] = sequence.upper().replace('T', 'U')
+            input_map['target_sequence'] = sequence.replace('T', 'U').replace('t', 'u')
         print('sequence must be in IUPAC format and be the same length as structure')
     while input_map.get('target_energy') is None and not was_file:
-        str_energy = input('Enter the desired minimum free energy in Kcal/mol (-1000 for none):\n')\
+        str_energy = input('Enter the desired minimum free energy in Kcal/mol (-1000 for none):\n') \
             .strip()
         try:
             input_map['target_energy'] = float(str_energy)
         except ValueError:
             print('target energy must by a floating number')
     while input_map.get('target_neutrality') is None and not was_file:
-        str_neutrality = input('Enter the desired neutrality (-1000 for none):\n')\
+        str_neutrality = input('Enter the desired neutrality (-1000 for none):\n') \
             .strip()
         try:
             input_map['target_neutrality'] = float(str_neutrality)
@@ -411,6 +391,9 @@ def designer(argv: List[str]) -> sfb_designer.RnafbinvResult:
         rna_folder = vienna.LiveRNAfold(arg_map.get("logger"))
         rna_folder.start(arg_map.get('circular'))
         arg_map['RNAfold'] = rna_folder
+        # sequence motif uses lower case sequence for higher penalty in insertion / deletion
+        if not arg_map['seq_motif']:
+            arg_map['target_sequence'] = arg_map['target_sequence'].upper()
         # run simulated annealing
         arg_map.get("logger").debug("Starting simulated_annealing\nArguments: {}".format(arg_map))
         designed_sequence = sfb_designer.simulated_annealing(arg_map)
@@ -434,3 +417,4 @@ if __name__ == "__main__":
                         format='%(levelname)s:%(asctime)s - %(message)s')
     vienna.set_vienna_path('D:\\Programs\\ViennaRNA')
     designer(sys.argv[1:])
+    #designer('-h')

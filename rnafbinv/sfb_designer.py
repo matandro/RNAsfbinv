@@ -9,9 +9,7 @@ import math
 
 from typing import Dict, Any
 
-from rnafbinv import shapiro_tree_aligner, vienna, tree_aligner, shapiro_generator
-from rnafbinv import mutator
-from rnafbinv import IUPAC
+from rnafbinv import shapiro_tree_aligner, vienna, tree_aligner, shapiro_generator, mutator, IUPAC
 
 
 def stop(options: Dict[str, Any]):
@@ -74,7 +72,7 @@ def score_sequence(sequence: str, target_tree: tree_aligner.Tree, options: Dict[
     fold_map = options.get('RNAfold').fold(sequence)
     structure = fold_map[options.get('fold')]
     tree, score = shapiro_tree_aligner.align_trees(shapiro_tree_aligner.get_tree(structure, sequence),
-                                                   target_tree)
+                                                   target_tree, options['alignment_rules'])
     # Add energy diff
     target_energy = options.get('target_energy')
     if target_energy is not None and target_energy != -1000:
@@ -82,21 +80,25 @@ def score_sequence(sequence: str, target_tree: tree_aligner.Tree, options: Dict[
     # Add mutation robustness diff
     target_neutrality = options.get('target_neutrality')
     if target_neutrality is not None and target_neutrality != -1000:
-        score += abs(calculate_neutrality(sequence, structure) - target_neutrality)
+        score += abs(calculate_neutrality(sequence, structure) - target_neutrality) * 100
     return tree, score
 
 
 class RnafbinvResult:
-    def __init__(self, sequence: str, options: Dict[str, Any]):
+    def __init__(self, sequence: str, options: Dict[str, Any], calc_robusntess: bool=True):
         self.sequence = sequence
         fold_map = options.get('RNAfold').fold(sequence)
         self.fold_type = options.get('fold')
         self.energy = fold_map.get("{}_energy".format(options.get('fold')))
         self.structure = fold_map.get(options.get('fold'))
-        self.mutational_robustness = calculate_neutrality(self.sequence, self.structure, options)
+        if calc_robusntess:
+            self.mutational_robustness = calculate_neutrality(self.sequence, self.structure, options)
+        else:
+            self.mutational_robustness = None
         target_tree = shapiro_tree_aligner.get_tree(options['target_structure'], options['target_sequence'])
         self.result_tree = shapiro_tree_aligner.get_tree(self.structure, self.sequence)
-        self.align_tree, self.score = shapiro_tree_aligner.align_trees(self.result_tree, target_tree)
+        self.align_tree, self.score = shapiro_tree_aligner.align_trees(self.result_tree, target_tree,
+                                                                       options['alignment_rules'])
         self.tree_edit_distance = tree_aligner.get_align_tree_distance(self.align_tree)
         self.bp_dist = bp_distance(self.structure, options['target_structure'])
 
@@ -165,6 +167,13 @@ def simulated_annealing(options: Dict[str, Any]):
     if len(options) == 0:
         options.get('logger').fatal("Options object was not properly initiated. ")
         return None
+    alignment_rules = tree_aligner.AlignmentRules(
+        delete_func=lambda tree_value, is_target: shapiro_tree_aligner.delete_shapiro_func(tree_value, is_target,
+                                                                                           options['reduced_bi']),
+        cmp_func=shapiro_tree_aligner.cmp_shapiro_tree_values,
+        merge_func=shapiro_tree_aligner.merge_shapiro_tree_values,
+        minmax_func=min)
+    options['alignment_rules'] = alignment_rules
     # init rng
     rng_seed = options.get('rng')
     if rng_seed is not None:
@@ -207,7 +216,7 @@ def simulated_annealing(options: Dict[str, Any]):
         logging.error('Motif list does not match target structure {}\nTarget Shapiro:{}'.format(options.get('motifs'),
                                                                                                 shapiro_str))
         return None
-    _, optimal_score = shapiro_tree_aligner.align_trees(target_tree, target_tree)
+    _, optimal_score = shapiro_tree_aligner.align_trees(target_tree, target_tree, options['alignment_rules'])
     match_tree, current_score = score_sequence(current_sequence, target_tree, options)
     best_score = current_score
     options.get('logger').info('Initial sequence ({}): {}\nAlign tree: {}'.format(current_score, current_sequence, match_tree))

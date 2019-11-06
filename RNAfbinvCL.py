@@ -19,6 +19,9 @@ def read_config():
     java = path_section.get('JAVA')
     if java is not None and java != '':
         varna_generator.set_java_path(java)
+    varna = path_section.get('VARNA')
+    if varna is not None and varna != '':
+        varna_generator.set_varna_path(varna)
 
 
 read_config()

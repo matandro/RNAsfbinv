@@ -10,7 +10,12 @@ import logging
 import os
 
 
-VARNA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'VARNAv3-93.jar')
+VARNA_PATH = 'VARNAv3-93.jar'
+
+
+def set_varna_path(path: str):
+    global VARNA_PATH
+    VARNA_PATH = path
 
 
 def set_java_path(path: str):
