@@ -151,7 +151,7 @@ def generate_arg_map(argv):
     logger.addHandler(console_handler)
     arg_map['logger'] = logger
 
-    auto_parse = parser.parse_args(argv.split())
+    auto_parse = parser.parse_args(argv)
 
     # -l <log file path>
     if auto_parse.log_output is not None:

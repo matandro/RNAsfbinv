@@ -60,16 +60,16 @@ If you remove the VARNA jar or do not have java installed, images will not be ge
 
 To specify [vienna package](https://www.tbi.univie.ac.at/RNA/ "The ViennaRNA Package homepage") binary folder please update the 'VIENNA' parameter in config.ini (or set VIENNA_PATH environment variable)<br/>
 To specify Java binary folder please update the 'JAVA' parameter in config.ini (or set JAVA_PATH environment variable)<br/>
-To specify [VARNA](http://varna.lri.fr/ "VARNA rna homepage")/'s jar file please update the 'VARNA' parameter in config.ini (or set VARNA_PATH environment variable)<br/>
+To specify [VARNA](http://varna.lri.fr/ "VARNA rna homepage")'s jar file please update the 'VARNA' parameter in config.ini (or set VARNA_PATH environment variable)<br/>
 Note that if the java or vienna package binaries are in your environment variables you may leave it empty.
 
 Example to a valid config.ini file which has java installed and within the system's path:
-'''
+```
 [PATH]
 VIENNA=~/ViennaRNA/bin/
 #JAVA=
 VARNA=~/VARNA/VARNAv3-93.jar
-'''
+```
 
 ### Command line arguments:
 

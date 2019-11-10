@@ -190,9 +190,8 @@ def simulated_annealing(options: Dict[str, Any]):
     else:
         current_sequence = current_sequence.replace('T', 'U')
     # Vienna starts the process
-    vienna_sequence = vienna.inverse(options['target_structure'],
-                                     vienna.inverse_seq_ready(options['target_sequence'],
-                                                              current_sequence))
+    vienna_sequence = vienna.inverse(options['target_structure'], vienna.inverse_seq_ready(options['target_sequence'],
+                                                                                           current_sequence))
     # vienna might fail initiation + removing any wildcard left
     if vienna_sequence is None or vienna_sequence == '':
         if options.get('starting_sequence') is None:
