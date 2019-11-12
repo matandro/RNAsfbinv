@@ -80,7 +80,7 @@ def score_sequence(sequence: str, target_tree: tree_aligner.Tree, options: Dict[
     # Add mutation robustness diff
     target_neutrality = options.get('target_neutrality')
     if target_neutrality is not None and target_neutrality != -1000:
-        score += abs(calculate_neutrality(sequence, structure) - target_neutrality) * 100
+        score += abs(calculate_neutrality(sequence, structure, options) - target_neutrality) * 100
     return tree, score
 
 
