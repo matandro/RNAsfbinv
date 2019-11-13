@@ -5,7 +5,8 @@ The similarity is based on fragment based design. A tree alignment is done based
 Nodes are comparable if they are both bounded motifs (stems) or unbounded motifs (multi loop, interior loops, bulges ect...).<br/>
 Each iteration the target motif tree will be aligned to the current candidate tree.<br/>
 The best alignment with the addition of other valuable features will generate a design score.<br/>
-Design score of 0 is exact fit but even higher scores can generate a good candidate.
+Design score of 0 is exact fit but even higher scores can generate a good candidate.<br/><br/>
+RNAfbinv 2.0 can be easily installed as it is available on pypi (python 3 compatible). To install it simply run ```pip install rnafbinv```.
 
 ## Attaching Vienna RNA
 

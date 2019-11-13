@@ -99,6 +99,14 @@ class RnafbinvResult:
         self.result_tree = shapiro_tree_aligner.get_tree(self.structure, self.sequence)
         self.align_tree, self.score = shapiro_tree_aligner.align_trees(self.result_tree, target_tree,
                                                                        options['alignment_rules'])
+        # Add energy diff
+        target_energy = options.get('target_energy')
+        if target_energy is not None and target_energy != -1000:
+            self.score += abs(fold_map['{}_energy'.format(options.get('fold'))] - target_energy)
+        # Add mutation robustness diff
+        target_neutrality = options.get('target_neutrality')
+        if target_neutrality is not None and target_neutrality != -1000:
+            self.score += abs(calculate_neutrality(sequence, self.structure, options) - target_neutrality) * 100
         self.tree_edit_distance = tree_aligner.get_align_tree_distance(self.align_tree)
         self.bp_dist = bp_distance(self.structure, options['target_structure'])
 
