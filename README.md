@@ -56,6 +56,7 @@ The main folder includes python code to run the GUI / command line and a configu
 * RNAfbinvCL.py - A command line wrapper for RNAfbinv2.0
 * **Required** varna_generator.py - Used to generate images based on [VARNA](http://varna.lri.fr/ "VARNA rna homepage")
 * **Required** config.ini - Configuration file with paths to required software (information below).
+* **Required** img folder with NoImage.png - used in GUI as a placeholder
 
 If you remove the VARNA jar or do not have java installed, images will not be generated but the design process will proceed normally.<br/><br/>
 
