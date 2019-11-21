@@ -7,10 +7,9 @@ requires an AlignmentRules object which includes functions for:
     4) Penalty for deletion from tree one
 '''
 
-
 import sys
 from typing import List, Tuple, Callable, TypeVar, Generic
-import itertools
+
 
 MIN_VALUE = -sys.maxsize - 1
 TreeValue = TypeVar('TreeValue')
@@ -90,7 +89,7 @@ def def_merge(x: TreeValue, y: TreeValue) -> TreeValue:
     return x
 
 
-def def_delete_func(x: TreeValue, is_target: bool=False) -> Tuple[float, AlignmentResult]:
+def def_delete_func(x: TreeValue, is_target: bool = False) -> Tuple[float, AlignmentResult]:
     return -1 * (2 if is_target else 1), None
 
 
@@ -101,10 +100,10 @@ def def_delete_func(x: TreeValue, is_target: bool=False) -> Tuple[float, Alignme
 # merge_func : a function that receives 2 tree values and returns a merged consensus
 # delete_func : a function that receives a single tree value and a boolean marking false as source tree and True as target
 class AlignmentRules(Generic[TreeValue]):
-    def __init__(self, minmax_func: Callable[[float, float], float]=max,
-                 delete_func: Callable[[TreeValue, bool], Tuple[float, AlignmentResult]]=def_delete_func,
-                 cmp_func: Callable[[TreeValue, TreeValue], Tuple[float, AlignmentResult]]=def_cmp,
-                 merge_func: Callable[[TreeValue, TreeValue], TreeValue]=def_merge):
+    def __init__(self, minmax_func: Callable[[float, float], float] = max,
+                 delete_func: Callable[[TreeValue, bool], Tuple[float, AlignmentResult]] = def_delete_func,
+                 cmp_func: Callable[[TreeValue, TreeValue], Tuple[float, AlignmentResult]] = def_cmp,
+                 merge_func: Callable[[TreeValue, TreeValue], TreeValue] = def_merge):
         self.cmp_func = cmp_func
         self.merge_func = merge_func
         self.minmax_func = minmax_func
@@ -152,49 +151,106 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
             del_tree_list.append((cost, del_transition_node))
         return del_tree_list
 
-    def all_combination(source_children: List[Tree], target_children: List[Tree]) -> List[Tuple[int, Tree]]:
+    def all_combination(source_children: List[Tree], target_children: List[Tree]) -> Tuple[int, List[Tree]]:
         del_source = del_subtrees(source_children, None, False)
         del_target = del_subtrees(target_children, None, True)
-        # generate a list of all combinations with order
-        all_options = [[]]
-        short_list = source_children if len(source_children) <= len(target_children) else target_children
-        long_list = source_children if len(source_children) > len(target_children) else target_children
-        for merge_size in range(1, len(short_list) + 1):
-            for locations_long in itertools.combinations(range(len(long_list)), merge_size):
-                for locations_short in itertools.combinations(range(len(short_list)), merge_size):
-                    m_list = [item for i, item in zip(range(len(short_list)), short_list) if i in locations_short]
-                    for i, j in zip(locations_long, range(len(short_list))):
-                        m_list[j] = (m_list[j], long_list[i]) if short_list == source_children else \
-                            (long_list[i], m_list[j])
-                    all_options.append(m_list)
-        best_score_option = -alignment_object.minmax_func(sys.maxsize, -sys.maxsize)
-        best_child_list = []
-        for single_option in all_options:
-            last_added_source = 0
-            last_added_target = 0
-            curr_score = 0
-            curr_children_list = []
-            for match_pair in single_option:
-                for source_index in range(last_added_source, source_children.index(match_pair[0])):
-                    curr_score += del_source[source_index][0]
-                    curr_children_list.append(del_source[source_index][1])
-                for target_index in range(last_added_target, target_children.index(match_pair[1])):
-                    curr_score += del_target[target_index][0]
-                    curr_children_list.append(del_target[target_index][1])
-                curr_score += score_matrix[match_pair[0].index][match_pair[1].index]
-                curr_children_list.append(transition_matrix[match_pair[0].index][match_pair[1].index])
-                last_added_source = source_children.index(match_pair[0]) + 1
-                last_added_target = target_children.index(match_pair[1]) + 1
-            for source_index in range(last_added_source, len(del_source)):
-                curr_score += del_source[source_index][0]
-                curr_children_list.append(del_source[source_index][1])
-            for target_index in range(last_added_target, len(del_target)):
-                curr_score += del_target[target_index][0]
-                curr_children_list.append(del_target[target_index][1])
-            if alignment_object.minmax_func(curr_score, best_score_option) == curr_score:
-                best_score_option = curr_score
-                best_child_list = curr_children_list
-        return best_score_option, best_child_list
+        # handle an empty tree list
+        if not source_children or not target_children:
+            if source_children:
+                return sum([single_del[0] for single_del in del_source]), [single_del[1] for single_del in del_source]
+            elif target_children:
+                return sum([single_del[0] for single_del in del_target]), [single_del[1] for single_del in del_target]
+            else:
+                return 0, []
+        # both have at least one child
+        children_scores = {}
+        children_trees = {}
+        for i in range(len(source_children), -1, -1):
+            for k in range(len(target_children), -1, -1):
+                for j in range(len(source_children), -1, -1):
+                    for l in range(len(target_children), -1, -1):
+                        # handle tree list vs empty
+                        if i >= j or k >= l:
+                            if i < j:
+                                best_score = sum([del_source[m][0] for m in range(i, j)])
+                                best_tree = [del_source[m][1] for m in range(i, j)]
+                            elif k < l:
+                                best_score = sum([del_target[m][0] for m in range(k, l)])
+                                best_tree = [del_target[m][1] for m in range(k, l)]
+                            else:
+                                best_score = 0
+                                best_tree = []
+                            children_scores[(i, j, k, l)] = best_score
+                            children_trees[(i, j, k, l)] = best_tree
+                            continue
+                        # handle tree list vs tree list
+                        score_options = []
+                        tree_options = []
+                        # Align first two
+                        temp_score = score_matrix[source_children[i].index][target_children[k].index] + \
+                                     children_scores[(i + 1, j, k + 1, l)]
+                        temp_subtree = [transition_matrix[source_children[i].index][target_children[k].index]] + \
+                                       children_trees[(i + 1, j, k + 1, l)]
+                        score_options.append(temp_score)
+                        tree_options.append(temp_subtree)
+                        # Insert first from source
+                        temp_score = -alignment_object.minmax_func(sys.maxsize, -sys.maxsize)
+                        temp_subtree = []
+                        found = False
+                        for m in range(k - 1, l):
+                            s, tl = all_combination(source_children[i].children, target_children[k:m])
+                            m_score = s + children_scores[(i + 1, j, m + 1, l)]
+                            if alignment_object.minmax_func(m_score, temp_score) == m_score:
+                                found = True
+                                temp_score = m_score
+                                temp_subtree = tl + children_trees[(i + 1, j, m + 1, l)]
+                        if not found:
+                            temp_score = 0
+                        temp_score += del_source[i][0]
+                        temp_subtree = [del_source[i][1]] + temp_subtree
+                        score_options.append(temp_score)
+                        tree_options.append(temp_subtree)
+                        # Del first from target
+                        temp_score = -alignment_object.minmax_func(sys.maxsize, -sys.maxsize)
+                        temp_subtree = []
+                        found = False
+                        for m in range(i - 1, j):
+                            s, tl = all_combination(source_children[i:m], target_children[k].children)
+                            m_score = s + children_scores[(m + 1, j, k + 1, l)]
+                            if alignment_object.minmax_func(m_score, temp_score) == m_score:
+                                found = False
+                                temp_score = m_score
+                                temp_subtree = tl + children_trees[(m + 1, j, k + 1, l)]
+                        if not found:
+                            temp_score = 0
+                        temp_score += del_target[k][0]
+                        temp_subtree = [del_target[k][1]] + temp_subtree
+                        score_options.append(temp_score)
+                        tree_options.append(temp_subtree)
+                        # find best
+                        if score_options:
+                            best_score = alignment_object.minmax_func(score_options)
+                            best_tree = tree_options[score_options.index(best_score)]
+                        else:
+                            best_score, best_tree = 0, []
+                        children_scores[(i, j, k, l)] = best_score
+                        children_trees[(i, j, k, l)] = best_tree
+
+        return (children_scores[(0, len(source_children), 0, len(target_children))],
+                children_trees[(0, len(source_children), 0, len(target_children))])
+
+    def min_children(single: Tree, children: List[Tree], is_child_first: bool) -> Tuple[int, List[Tree]]:
+        child_scores = [score_matrix[one_child.index][single.index] for one_child in children] if is_child_first else \
+            [score_matrix[single.index][one_child.index] for one_child in children]
+        if child_scores:
+            child_trees = [transition_matrix[one_child.index][single.index] for one_child in children] if \
+                is_child_first else [transition_matrix[single.index][one_child.index] for one_child in children]
+            score_res = alignment_object.minmax_func(child_scores)
+            tree_res = [child_trees[child_scores.index(score_res)]]
+        else:
+            score_res = 0
+            tree_res = []
+        return score_res, tree_res
 
     # index trees (lower is further) and create matrix
     tree_one_indexed = index_tree(tree_one)
@@ -221,16 +277,16 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
             # insert from tree one (ignore node), get best child to index two compare (del rest of children)
             transition_value, transition_align = alignment_object.delete_func(tree_one_indexed[index_one].value,
                                                                               is_target=False)
-            opt_t1_child_t2, opt_t1_children = all_combination(tree_one_indexed[index_one].children,
-                                                               [tree_two_indexed[index_two]])
+            opt_t1_child_t2, opt_t1_children = min_children(tree_two_indexed[index_two],
+                                                            tree_one_indexed[index_one].children, True)
             score_list.append(transition_value + opt_t1_child_t2)
             transition_list.append(Tree(tree_one_indexed[index_one].value, opt_t1_children,
                                         mode='S', alignment=transition_align))
             # insert from tree two (ignore node), get best child to index one compare (del rest of children)
             transition_value, transition_align = alignment_object.delete_func(tree_two_indexed[index_two].value,
                                                                               is_target=True)
-            opt_t1_t2_child, opt_t2_children = all_combination([tree_one_indexed[index_one]],
-                                                               tree_two_indexed[index_two].children)
+            opt_t1_t2_child, opt_t2_children = min_children(tree_one_indexed[index_one],
+                                                            tree_two_indexed[index_two].children, False)
             score_list.append(transition_value + opt_t1_t2_child)
             transition_list.append(Tree(tree_two_indexed[index_two].value, opt_t2_children,
                                         mode='T', alignment=transition_align))
@@ -243,9 +299,22 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
 
 if __name__ == "__main__":
     ar = AlignmentRules()
+    '''
     test_tree_one = Tree(1.1, [Tree(2.1, [Tree(3.1, [Tree(4.1, [])]), Tree(5.1, [Tree(6.1, [])])]),
                                Tree(2.1, [Tree(3.1, [])])])
     test_tree_two = Tree(1.2, [Tree(2.2, [Tree(4.2, [])]), Tree(2.2, [Tree(4.2, [Tree(3.2, [])])])])
+    print("Tree one: {}".format(test_tree_one))
+    print("Tree two: {}".format(test_tree_two))
+    align_tree, align_score = align_trees(test_tree_one, test_tree_two, ar)
+    print("Matched only Joined Tree ({}): {}".format(align_score, align_tree))
+    print("Full Joined Tree ({}): {}".format(align_score, align_tree.full_str()))
+    '''
+    test_tree_one = Tree(1.1, [Tree(2.1, [Tree(3.1, []),
+                                          Tree(4.1, [])]),
+                               Tree(5.1, [])])
+    test_tree_two = Tree(1.2, [Tree(3.2, []),
+                               Tree(4.2, []),
+                               Tree(5.2, []), ])
     print("Tree one: {}".format(test_tree_one))
     print("Tree two: {}".format(test_tree_two))
     align_tree, align_score = align_trees(test_tree_one, test_tree_two, ar)
