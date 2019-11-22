@@ -190,6 +190,7 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
                         # Insert first from source
                         temp_score = -alignment_object.minmax_func(sys.maxsize, -sys.maxsize)
                         temp_subtree = []
+                        temp_contree = None
                         found = False
                         for m in range(k, l):
                             s, tl = get_child_dp_info(source_children[i], 0, len(source_children[i].children),
@@ -199,20 +200,22 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
                             if alignment_object.minmax_func(m_score, temp_score) == m_score:
                                 found = True
                                 temp_score = m_score
-                                temp_subtree = tl + add_tree
+                                temp_subtree = tl
+                                temp_contree = add_tree
                         if not found:
                             temp_score = del_source[source_children[i].index][0]
                             temp_subtree = [del_source[source_children[i].index][1]]
                         else:
-                            only_main_score, temp_align = alignment_object.delete_func(source_children[i], False)
+                            only_main_score, temp_align = alignment_object.delete_func(source_children[i].value, False)
                             temp_score += only_main_score
                             temp_subtree = [Tree(source_children[i].value, temp_subtree, mode='S'
-                                                 , alignment=temp_align)]
+                                                 , alignment=temp_align)] + temp_contree
                         score_options.append(temp_score)
                         tree_options.append(temp_subtree)
                         # Del first from target
                         temp_score = -alignment_object.minmax_func(sys.maxsize, -sys.maxsize)
                         temp_subtree = []
+                        temp_contree = None
                         found = False
                         for m in range(i, j):
                             s, tl = get_child_dp_info(source_parent, i, m,
@@ -222,15 +225,16 @@ def align_trees(tree_one: Tree, tree_two: Tree, alignment_object: AlignmentRules
                             if alignment_object.minmax_func(m_score, temp_score) == m_score:
                                 found = False
                                 temp_score = m_score
-                                temp_subtree = tl + add_tree
+                                temp_subtree = tl
+                                temp_contree = add_tree
                         if not found:
                             temp_score = del_target[target_children[k].index][0]
                             temp_subtree = [del_target[target_children[k].index][1]]
                         else:
-                            only_main_score, temp_align = alignment_object.delete_func(target_children[k], True)
+                            only_main_score, temp_align = alignment_object.delete_func(target_children[k].value, True)
                             temp_score += only_main_score
                             temp_subtree = [Tree(target_children[k].value, temp_subtree, mode='T',
-                                                 alignment=temp_align)]
+                                                 alignment=temp_align)] + temp_contree
                         score_options.append(temp_score)
                         tree_options.append(temp_subtree)
                         # find best
