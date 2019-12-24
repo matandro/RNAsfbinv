@@ -75,11 +75,11 @@ def score_sequence(sequence: str, target_tree: tree_aligner.Tree, options: Dict[
                                                    target_tree, options['alignment_rules'])
     # Add energy diff
     target_energy = options.get('target_energy')
-    if target_energy is not None and target_energy != -1000:
+    if target_energy is not None:
         score += abs(fold_map['{}_energy'.format(options.get('fold'))] - target_energy)
     # Add mutation robustness diff
     target_neutrality = options.get('target_neutrality')
-    if target_neutrality is not None and target_neutrality != -1000:
+    if target_neutrality is not None:
         score += abs(calculate_neutrality(sequence, structure, options) - target_neutrality) * 100
     return tree, score
 
@@ -101,11 +101,11 @@ class RnafbinvResult:
                                                                        options['alignment_rules'])
         # Add energy diff
         target_energy = options.get('target_energy')
-        if target_energy is not None and target_energy != -1000:
+        if target_energy is not None:
             self.score += abs(fold_map['{}_energy'.format(options.get('fold'))] - target_energy)
         # Add mutation robustness diff
         target_neutrality = options.get('target_neutrality')
-        if target_neutrality is not None and target_neutrality != -1000:
+        if target_neutrality is not None:
             self.score += abs(calculate_neutrality(sequence, self.structure, options) - target_neutrality) * 100
         self.tree_edit_distance = tree_aligner.get_align_tree_distance(self.align_tree)
         self.bp_dist = bp_distance(self.structure, options['target_structure'])

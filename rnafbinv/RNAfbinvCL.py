@@ -360,20 +360,26 @@ def read_mandatory_params(input_map, was_file):
             input_map['target_sequence'] = sequence.replace('T', 'U').replace('t', 'u')
         print('sequence must be in IUPAC format and be the same length as structure')
     while input_map.get('target_energy') is None and not was_file:
-        str_energy = input('Enter the desired minimum free energy in Kcal/mol (-1000 for none):\n') \
+        str_energy = input('Enter the desired minimum free energy in Kcal/mol (leave empty for none):\n') \
             .strip()
         try:
-            input_map['target_energy'] = float(str_energy)
+            if str_energy.strip == '':
+                break
+            else:
+                input_map['target_energy'] = float(str_energy)
         except ValueError:
-            print('target energy must by a floating number')
+            print('target energy must by a floating number or empty')
     while input_map.get('target_neutrality') is None and not was_file:
-        str_neutrality = input('Enter the desired neutrality (-1000 for none):\n') \
-            .strip()
+        str_neutrality = input('Enter the desired neutrality, this feature significantly increases run time '
+                               '(leave empty for none):\n').strip()
         try:
-            input_map['target_neutrality'] = float(str_neutrality)
+            if str_neutrality == '':
+                break
+            else:
+                input_map['target_neutrality'] = float(str_neutrality)
             break
         except ValueError:
-            print('target neutrality must by a floating number')
+            print('target neutrality must by a floating number or empty')
     return input_map
 
 

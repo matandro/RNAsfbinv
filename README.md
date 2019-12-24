@@ -8,6 +8,11 @@ The best alignment with the addition of other valuable features will generate a 
 Design score of 0 is exact fit but even higher scores can generate a good candidate.<br/><br/>
 RNAfbinv 2.0 can be easily installed as it is available on pypi (python 3 compatible). To install it simply run ```pip install rnafbinv```.
 
+<br/>
+If you use the tool please cite:<br/> 
+Drory Retwitzer, M., Reinharz, V., Churkin, A., Ponty, Y., Waldispühl, J., & Barash, D. (2019) 
+incaRNAfbinv 2.0 - A webserver and software with motif control for fragment-based design of RNAs. Bioinformatics, accepted.
+
 ## Attaching Vienna RNA
 
 [Vienna RNA package](https://www.tbi.univie.ac.at/RNA/ "Vienna RNA home") is required for RNAfbinv to work. This must be installed separately.<br/>
@@ -146,3 +151,22 @@ ITERATION=<number of simulated annealing iterations>
 
 RNAfbinv2.0 can be found in a web server combined with incaRNAtion. The webserver generates starting seeds using incaRNAtion global sampling algorithm.<br/>
 Te seed sequences are then sent to RNAfbinv2.0 for design. [incaRNAfbinv web server](https://www.cs.bgu.ac.il/incaRNAfbinv/ "incaRNAtion & RNAfbinv")
+
+## The Tree class
+
+The tree alignment was written in an object oriented pattern (found in tree_aligner.py) . 
+The `Tree` class generates the best alignment between two trees based on
+a dynamic programming algorithm based on the classic classic Jiang-Wang-Zhang solution. The `TreeValue` class is expended to solve the fragment-based comparison of two "shapiro trees" 
+but it can solve multiple problems based on the user needs.<br/>
+To use the code one must define a `TreeValue` class the specifies the value of a single node in the tree.
+To align the trees the user must implement an `AlignmentObject` class which is a container 
+that holds four functions:<br/>
+* minmax_func - Function that receives two floating value and returns the best of the two (example: min, max)
+* delete_func - Function that receives a `TreeValue` and a boolean stating if the value is from the target of source tree and returns a score 
+representing the value of the deletion and an optional `AlignmentResult` object that includes a description of the deletion  
+* cmp_func - Function that receives two `TreeValue` objects and compares them, it returns a score and an optional `AlignmentResult` object that 
+includes the description of the comparison
+* merge_func - Function the receives two `TreeValue` objects returns a new `TreeValue` representing the merge between the two.
+<br/>
+A reference implementation can be found in the file: shapiro_tree_aligner.py
+    
